@@ -11,11 +11,12 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (manual = false) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/dashboard");
+      const url = manual ? "/api/dashboard?refresh=1" : "/api/dashboard";
+      const res = await fetch(url);
       if (!res.ok) throw new Error("Failed to load dashboard data");
       const json = await res.json();
       setData(json);
@@ -56,7 +57,7 @@ export default function Dashboard() {
               </p>
             )}
             <button
-              onClick={fetchData}
+              onClick={() => fetchData(true)}
               disabled={loading}
               className="flex items-center gap-1.5 rounded-lg border border-[#1e1e2e] bg-[#111118] px-3 py-1.5 text-[12px] font-medium text-white transition hover:border-[#00fff9]/40 hover:text-[#00fff9] disabled:opacity-50"
             >

@@ -1,11 +1,28 @@
 import { NextResponse } from "next/server";
-import { getActiveAccounts, getConversionsTrend } from "@/lib/google-ads";
+import { unstable_cache } from "next/cache";
+import { fetchDashboard } from "@/lib/google-ads";
 import { MOCK_ACCOUNTS, generateMockTrend } from "@/lib/mock-data";
 import { DashboardData } from "@/lib/types";
 
+// Extend Vercel function timeout to 60s
+export const maxDuration = 60;
+
 const USE_MOCK = !process.env.GOOGLE_ADS_DEVELOPER_TOKEN;
 
-export async function GET() {
+// Cache live data for 5 minutes so repeated page loads are instant
+const getCachedDashboard = unstable_cache(
+  async (): Promise<DashboardData> => {
+    const { accounts, conversionsTrend } = await fetchDashboard();
+    return { accounts, conversionsTrend, lastUpdated: new Date().toISOString() };
+  },
+  ["dashboard"],
+  { revalidate: 300 }
+);
+
+export async function GET(request: Request) {
+  // Allow manual refresh by busting cache via ?refresh=1
+  const refresh = new URL(request.url).searchParams.get("refresh") === "1";
+
   try {
     let data: DashboardData;
 
@@ -15,12 +32,12 @@ export async function GET() {
         conversionsTrend: generateMockTrend(),
         lastUpdated: new Date().toISOString(),
       };
-    } else {
-      const [accounts, conversionsTrend] = await Promise.all([
-        getActiveAccounts(),
-        getConversionsTrend(),
-      ]);
+    } else if (refresh) {
+      // Bypass cache for manual refresh
+      const { accounts, conversionsTrend } = await fetchDashboard();
       data = { accounts, conversionsTrend, lastUpdated: new Date().toISOString() };
+    } else {
+      data = await getCachedDashboard();
     }
 
     return NextResponse.json(data);
