@@ -22,7 +22,6 @@ function getCustomer(customerId: string) {
   });
 }
 
-// Process items in sequential batches to avoid rate limits
 async function inBatches<T, R>(
   items: T[],
   size: number,
@@ -48,46 +47,53 @@ function parseMetrics(row: any) {
   };
 }
 
-const METRICS_QUERY = `
-  SELECT
-    metrics.cost_micros,
-    metrics.clicks,
-    metrics.impressions,
-    metrics.conversions,
-    metrics.conversions_from_interactions_rate
-  FROM customer
-  WHERE segments.date DURING `;
+const METRICS_FIELDS = `
+  metrics.cost_micros,
+  metrics.clicks,
+  metrics.impressions,
+  metrics.conversions,
+  metrics.conversions_from_interactions_rate
+`;
 
-async function fetchAllPeriods(customerId: string) {
+async function fetchAccountData(customerId: string) {
   const customer = getCustomer(customerId);
-  const [today, thisWeek, thisMonth, last30Days] = await Promise.all([
-    customer.query(METRICS_QUERY + "TODAY"),
-    customer.query(METRICS_QUERY + "THIS_WEEK_SUN_TODAY"),
-    customer.query(METRICS_QUERY + "THIS_MONTH"),
-    customer.query(METRICS_QUERY + "LAST_30_DAYS"),
+
+  const now = new Date();
+  const d90 = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+  const d90Str = d90.toISOString().slice(0, 10);
+  const todayStr = now.toISOString().slice(0, 10);
+
+  const [today, thisWeek, thisMonth, last30Days, spend90, trendRows] = await Promise.all([
+    customer.query(`SELECT ${METRICS_FIELDS} FROM customer WHERE segments.date DURING TODAY`),
+    customer.query(`SELECT ${METRICS_FIELDS} FROM customer WHERE segments.date DURING THIS_WEEK_SUN_TODAY`),
+    customer.query(`SELECT ${METRICS_FIELDS} FROM customer WHERE segments.date DURING THIS_MONTH`),
+    customer.query(`SELECT ${METRICS_FIELDS} FROM customer WHERE segments.date DURING LAST_30_DAYS`),
+    customer.query(`SELECT metrics.cost_micros FROM customer WHERE segments.date >= '${d90Str}' AND segments.date <= '${todayStr}'`),
+    customer.query(`SELECT segments.date, metrics.conversions FROM customer WHERE segments.date DURING LAST_30_DAYS ORDER BY segments.date ASC`),
   ]);
-  return {
-    today: parseMetrics(today[0]),
-    thisWeek: parseMetrics(thisWeek[0]),
-    thisMonth: parseMetrics(thisMonth[0]),
-    last30Days: parseMetrics(last30Days[0]),
-  };
-}
 
-async function fetchTrend(customerId: string): Promise<Record<string, number>> {
-  const customer = getCustomer(customerId);
-  const rows = await customer.query(`
-    SELECT segments.date, metrics.conversions
-    FROM customer
-    WHERE segments.date DURING LAST_30_DAYS
-    ORDER BY segments.date ASC
-  `);
-  const totals: Record<string, number> = {};
-  for (const row of rows) {
+  const totalSpend90 = spend90.reduce((sum: number, r: any) => sum + Number(r?.metrics?.cost_micros ?? 0), 0);
+
+  const trendMap: Record<string, number> = {};
+  for (const row of trendRows) {
     const date = row.segments!.date as string;
-    totals[date] = (totals[date] ?? 0) + Number(row.metrics!.conversions ?? 0);
+    trendMap[date] = (trendMap[date] ?? 0) + Number(row.metrics!.conversions ?? 0);
   }
-  return totals;
+  const trend: DailyConversion[] = Object.entries(trendMap)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, conversions]) => ({ date, conversions }));
+
+  return {
+    isActive: totalSpend90 > 0,
+    metrics: {
+      today: parseMetrics(today[0]),
+      thisWeek: parseMetrics(thisWeek[0]),
+      thisMonth: parseMetrics(thisMonth[0]),
+      last30Days: parseMetrics(last30Days[0]),
+    },
+    trend,
+    trendMap,
+  };
 }
 
 export interface DashboardPayload {
@@ -98,7 +104,6 @@ export interface DashboardPayload {
 export async function fetchDashboard(): Promise<DashboardPayload> {
   const mcc = getCustomer(process.env.GOOGLE_ADS_MCC_CUSTOMER_ID!);
 
-  // Single query to list all active sub-accounts
   const clientRows = await mcc.query(`
     SELECT
       customer_client.id,
@@ -115,23 +120,22 @@ export async function fetchDashboard(): Promise<DashboardPayload> {
     currency: r.customer_client!.currency_code ?? "AUD",
   }));
 
-  // Process in batches of 3 — metrics + trend per account together
   const dailyTotals: Record<string, number> = {};
 
   const accounts = await inBatches(ids, 3, async ({ id, name, currency }) => {
-    const [metrics, trend] = await Promise.all([
-      fetchAllPeriods(id),
-      fetchTrend(id),
-    ]);
-    for (const [date, val] of Object.entries(trend)) {
+    const { isActive, metrics, trend, trendMap } = await fetchAccountData(id);
+    for (const [date, val] of Object.entries(trendMap)) {
       dailyTotals[date] = (dailyTotals[date] ?? 0) + val;
     }
-    return { id, name, currency, status: "ENABLED" as const, metrics };
+    return { id, name, currency, status: "ENABLED" as const, isActive, metrics, trend };
   });
 
   const conversionsTrend = Object.entries(dailyTotals)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([date, conversions]) => ({ date, conversions }));
+
+  // Sort: active accounts first
+  accounts.sort((a, b) => Number(b.isActive) - Number(a.isActive));
 
   return { accounts, conversionsTrend };
 }

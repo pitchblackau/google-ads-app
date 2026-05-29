@@ -19,28 +19,38 @@ function mockMetrics(scale: number) {
   };
 }
 
-export const MOCK_ACCOUNTS: Account[] = [
-  { id: "1234567890", name: "Acme Corp", currency: "AUD" },
-  { id: "2345678901", name: "Blue Horizon Dental", currency: "AUD" },
-  { id: "3456789012", name: "Summit Legal Group", currency: "AUD" },
-  { id: "4567890123", name: "Coastal Real Estate", currency: "AUD" },
-  { id: "5678901234", name: "FitLife Studios", currency: "AUD" },
-  { id: "6789012345", name: "TechFlow Solutions", currency: "AUD" },
-].map((a) => ({
+function mockTrend(): DailyConversion[] {
+  return Array.from({ length: 30 }, (_, i) => ({
+    date: format(subDays(new Date(), 29 - i), "yyyy-MM-dd"),
+    conversions: Math.round(rand(2, 40)),
+  }));
+}
+
+const BASE_ACCOUNTS = [
+  { id: "1234567890", name: "Acme Corp", currency: "AUD", isActive: true },
+  { id: "2345678901", name: "Blue Horizon Dental", currency: "AUD", isActive: true },
+  { id: "3456789012", name: "Summit Legal Group", currency: "AUD", isActive: true },
+  { id: "4567890123", name: "Coastal Real Estate", currency: "AUD", isActive: true },
+  { id: "5678901234", name: "FitLife Studios", currency: "AUD", isActive: false },
+  { id: "6789012345", name: "TechFlow Solutions", currency: "AUD", isActive: false },
+];
+
+export const MOCK_ACCOUNTS: Account[] = BASE_ACCOUNTS.map((a) => ({
   ...a,
   status: "ENABLED" as const,
   metrics: {
-    today: mockMetrics(1),
-    thisWeek: mockMetrics(5),
-    thisMonth: mockMetrics(18),
-    last30Days: mockMetrics(20),
+    today: a.isActive ? mockMetrics(1) : { spend: 0, clicks: 0, impressions: 0, conversions: 0, conversionRate: 0 },
+    thisWeek: a.isActive ? mockMetrics(5) : { spend: 0, clicks: 0, impressions: 0, conversions: 0, conversionRate: 0 },
+    thisMonth: a.isActive ? mockMetrics(18) : { spend: 0, clicks: 0, impressions: 0, conversions: 0, conversionRate: 0 },
+    last30Days: a.isActive ? mockMetrics(20) : { spend: 0, clicks: 0, impressions: 0, conversions: 0, conversionRate: 0 },
   },
+  trend: a.isActive ? mockTrend() : [],
 }));
 
 export function generateMockTrend(): DailyConversion[] {
   return Array.from({ length: 30 }, (_, i) => {
     const date = format(subDays(new Date(), 29 - i), "yyyy-MM-dd");
-    const conversions = MOCK_ACCOUNTS.reduce((sum) => {
+    const conversions = MOCK_ACCOUNTS.filter(a => a.isActive).reduce((sum) => {
       return sum + Math.round(rand(5, 80));
     }, 0);
     return { date, conversions };

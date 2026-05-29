@@ -18,7 +18,9 @@ export interface Account {
   name: string;
   currency: string;
   status: "ENABLED" | "PAUSED" | "REMOVED";
+  isActive: boolean;
   metrics: TimePeriodMetrics;
+  trend: DailyConversion[];
 }
 
 export interface DailyConversion {
