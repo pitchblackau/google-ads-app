@@ -73,7 +73,7 @@ export default function AccountDetail({ accountId }: AccountDetailProps) {
 
   // Flatten all ad groups from active campaigns for the Ad Group Performance table
   const allAdGroups: FlatAdGroup[] = campaigns
-    .filter((c) => c.status === "ENABLED")
+    .filter((c) => c.status === "ENABLED" || Number(c.status) === 2)
     .flatMap((c) =>
       c.adGroups.map((ag) => ({ ...ag, campaignName: c.name }))
     )

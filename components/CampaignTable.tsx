@@ -25,8 +25,11 @@ export default function CampaignTable({ campaigns, period, onPeriodChange, loadi
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
-  // Only show enabled campaigns (safety net — API already filters, but guard here too)
-  const activeCampaigns = campaigns.filter((c) => c.status === "ENABLED");
+  // Hide paused/removed campaigns. Status may arrive as string "ENABLED" or
+  // numeric "2" depending on API version — handle both forms.
+  const activeCampaigns = campaigns.filter(
+    (c) => c.status === "ENABLED" || Number(c.status) === 2
+  );
   const hasRoas = activeCampaigns.some((c) => c.roas !== null);
   const currentLabel = PERIOD_OPTIONS.find((p) => p.value === period)?.label ?? "Last 30 Days";
 

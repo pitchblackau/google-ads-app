@@ -182,6 +182,9 @@ function parseCampaignMetrics(row: any) {
   };
 }
 
+// Google Ads API returns status as a numeric enum — map to readable strings
+const CAMPAIGN_STATUS: Record<number, string> = { 2: "ENABLED", 3: "PAUSED", 4: "REMOVED" };
+
 export async function fetchCampaigns(customerId: string, period: string): Promise<CampaignData[]> {
   const customer = getCustomer(customerId);
 
@@ -191,14 +194,16 @@ export async function fetchCampaigns(customerId: string, period: string): Promis
     metrics.conversions, metrics.conversions_value
   `;
   const AG_FIELDS = `
-    campaign.id, ad_group.id, ad_group.name, ad_group.status,
+    campaign.id, ad_group.id, ad_group.name,
     metrics.cost_micros, metrics.clicks, metrics.impressions,
     metrics.conversions, metrics.conversions_value
   `;
 
+  // Use != 'REMOVED' so campaigns that ran in the period but are now paused
+  // still appear — the UI layer handles hiding currently-paused campaigns.
   const [campaignRows, adGroupRows] = await Promise.all([
-    customer.query(`SELECT ${CAMP_FIELDS} FROM campaign WHERE segments.date DURING ${period} AND campaign.status = 'ENABLED' ORDER BY metrics.cost_micros DESC`),
-    customer.query(`SELECT ${AG_FIELDS} FROM ad_group WHERE segments.date DURING ${period} AND campaign.status = 'ENABLED' AND ad_group.status = 'ENABLED' ORDER BY metrics.cost_micros DESC`),
+    customer.query(`SELECT ${CAMP_FIELDS} FROM campaign WHERE segments.date DURING ${period} AND campaign.status != 'REMOVED' ORDER BY metrics.cost_micros DESC`),
+    customer.query(`SELECT ${AG_FIELDS} FROM ad_group WHERE segments.date DURING ${period} AND campaign.status != 'REMOVED' AND ad_group.status != 'REMOVED' ORDER BY metrics.cost_micros DESC`),
   ]);
 
   const adGroupsByCampaign: Record<string, AdGroupData[]> = {};
@@ -212,11 +217,16 @@ export async function fetchCampaigns(customerId: string, period: string): Promis
     });
   }
 
-  return campaignRows.map((row) => ({
-    id: String(row.campaign!.id),
-    name: row.campaign!.name ?? "",
-    status: String(row.campaign!.status ?? ""),
-    ...parseCampaignMetrics(row),
-    adGroups: adGroupsByCampaign[String(row.campaign!.id)] ?? [],
-  }));
+  return campaignRows.map((row) => {
+    // Normalise numeric enum → string so UI comparisons ("ENABLED") work
+    const rawStatus = Number(row.campaign!.status);
+    const status = CAMPAIGN_STATUS[rawStatus] ?? String(row.campaign!.status ?? "UNKNOWN");
+    return {
+      id: String(row.campaign!.id),
+      name: row.campaign!.name ?? "",
+      status,
+      ...parseCampaignMetrics(row),
+      adGroups: adGroupsByCampaign[String(row.campaign!.id)] ?? [],
+    };
+  });
 }
