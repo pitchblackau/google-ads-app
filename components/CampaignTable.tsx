@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import { CampaignData, PERIOD_OPTIONS, PeriodValue } from "@/lib/types";
 import { clsx } from "clsx";
 
@@ -105,10 +105,9 @@ export default function CampaignTable({ campaigns, period, onPeriodChange, loadi
               {campaigns.map((camp) => {
                 const isOpen = expanded.has(camp.id);
                 return (
-                  <>
+                  <React.Fragment key={camp.id}>
                     {/* Campaign row */}
                     <tr
-                      key={camp.id}
                       onClick={() => toggle(camp.id)}
                       className="border-b border-[#1e1e2e] hover:bg-[#ffffff05] cursor-pointer group"
                     >
@@ -153,7 +152,7 @@ export default function CampaignTable({ campaigns, period, onPeriodChange, loadi
                         </td>}
                       </tr>
                     ))}
-                  </>
+                  </React.Fragment>
                 );
               })}
             </tbody>
