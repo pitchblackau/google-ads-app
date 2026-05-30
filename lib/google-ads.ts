@@ -162,6 +162,54 @@ export async function fetchAccountDetail(customerId: string): Promise<Account> {
   };
 }
 
+// ── Standalone trend queries (support multiple periods) ──────────
+
+function buildTrendDateFilter(period: string): string {
+  const now = new Date();
+  const todayStr = now.toISOString().slice(0, 10);
+  if (period === "LAST_30_DAYS") return "segments.date DURING LAST_30_DAYS";
+  if (period === "THIS_YEAR") {
+    return `segments.date >= '${now.getFullYear()}-01-01' AND segments.date <= '${todayStr}'`;
+  }
+  const days = period === "LAST_3_MONTHS" ? 90 : 180; // default → LAST_6_MONTHS
+  const start = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+  return `segments.date >= '${start.toISOString().slice(0, 10)}' AND segments.date <= '${todayStr}'`;
+}
+
+export async function fetchAccountTrend(customerId: string, period: string): Promise<DailyConversion[]> {
+  const customer = getCustomer(customerId);
+  const rows = await customer.query(
+    `SELECT segments.date, metrics.conversions FROM customer WHERE ${buildTrendDateFilter(period)} ORDER BY segments.date ASC`
+  );
+  const trendMap: Record<string, number> = {};
+  for (const row of rows) {
+    const date = row.segments!.date as string;
+    if (date) trendMap[date] = (trendMap[date] ?? 0) + Number(row.metrics!.conversions ?? 0);
+  }
+  return Object.entries(trendMap)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, conversions]) => ({ date, conversions }));
+}
+
+export async function fetchDashboardTrend(period: string): Promise<DailyConversion[]> {
+  const mcc = getCustomer(process.env.GOOGLE_ADS_MCC_CUSTOMER_ID!);
+  const clientRows = await mcc.query(`
+    SELECT customer_client.id FROM customer_client
+    WHERE customer_client.status = 'ENABLED' AND customer_client.manager = false
+  `);
+  const ids = clientRows.map((r) => String(r.customer_client!.id));
+  const dailyTotals: Record<string, number> = {};
+  await inBatches(ids, 3, async (id) => {
+    const trend = await fetchAccountTrend(id, period);
+    for (const { date, conversions } of trend) {
+      dailyTotals[date] = (dailyTotals[date] ?? 0) + conversions;
+    }
+  });
+  return Object.entries(dailyTotals)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, conversions]) => ({ date, conversions }));
+}
+
 // ── Campaign + ad group breakdown ────────────────────────────────
 
 function parseCampaignMetrics(row: any) {

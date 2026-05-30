@@ -62,6 +62,15 @@ export interface CampaignData {
   adGroups: AdGroupData[];
 }
 
+export const TREND_PERIOD_OPTIONS = [
+  { label: "Last 30 days",  value: "LAST_30_DAYS"  },
+  { label: "Last 3 months", value: "LAST_3_MONTHS" },
+  { label: "Last 6 months", value: "LAST_6_MONTHS" },
+  { label: "This year",     value: "THIS_YEAR"      },
+] as const;
+
+export type TrendPeriodValue = typeof TREND_PERIOD_OPTIONS[number]["value"];
+
 export const PERIOD_OPTIONS = [
   { label: "Last 30 Days",  value: "LAST_30_DAYS"       },
   { label: "This Month",    value: "THIS_MONTH"          },

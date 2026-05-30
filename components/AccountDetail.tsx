@@ -2,11 +2,10 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Account, AdGroupData, CampaignData, PeriodValue } from "@/lib/types";
+import { Account, AdGroupData, CampaignData, PERIOD_OPTIONS, PeriodValue } from "@/lib/types";
 import MetricBox from "./MetricBox";
 import CampaignTable from "./CampaignTable";
 import ConversionsTrend from "./ConversionsTrend";
-import { format, parseISO } from "date-fns";
 import { clsx } from "clsx";
 
 const PERIODS = ["today", "thisWeek", "thisMonth", "last30Days"] as const;
@@ -27,60 +26,79 @@ function fmt(n: number) {
   return n.toLocaleString();
 }
 function fmtSpend(n: number, currency: string) {
-  return new Intl.NumberFormat("en-AU", { style: "currency", currency, maximumFractionDigits: 0 }).format(n);
+  return new Intl.NumberFormat("en-AU", {
+    style: "currency", currency, maximumFractionDigits: 0,
+  }).format(n);
 }
 
-// Flat ad group entry with the parent campaign name
 interface FlatAdGroup extends AdGroupData {
   campaignName: string;
 }
 
 export default function AccountDetail({ accountId }: AccountDetailProps) {
   const router = useRouter();
+
+  // Account header state
   const [account, setAccount] = useState<Account | null>(null);
-  const [campaigns, setCampaigns] = useState<CampaignData[]>([]);
-  const [period, setPeriod] = useState<PeriodValue>("LAST_30_DAYS");
   const [accountLoading, setAccountLoading] = useState(true);
-  const [campaignsLoading, setCampaignsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch account header data once
+  // Campaign Performance state (own period)
+  const [campaigns, setCampaigns] = useState<CampaignData[]>([]);
+  const [campaignPeriod, setCampaignPeriod] = useState<PeriodValue>("LAST_30_DAYS");
+  const [campaignsLoading, setCampaignsLoading] = useState(true);
+
+  // Ad Group Performance state (own period)
+  const [adGroupCampaigns, setAdGroupCampaigns] = useState<CampaignData[]>([]);
+  const [adGroupPeriod, setAdGroupPeriod] = useState<PeriodValue>("LAST_30_DAYS");
+  const [adGroupsLoading, setAdGroupsLoading] = useState(true);
+  const [adGroupDropdownOpen, setAdGroupDropdownOpen] = useState(false);
+
+  // ── Fetchers ──────────────────────────────────────────────────────
+
   useEffect(() => {
     fetch(`/api/account/${accountId}`)
       .then(async (r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
       })
-      .then((data) => { setAccount(data); setAccountLoading(false); })
+      .then((d) => { setAccount(d); setAccountLoading(false); })
       .catch((e) => { setError(`Failed to load account: ${e.message}`); setAccountLoading(false); });
   }, [accountId]);
 
-  // Fetch campaigns when period changes
   const fetchCampaigns = useCallback(async (p: PeriodValue) => {
     setCampaignsLoading(true);
     try {
       const res = await fetch(`/api/account/${accountId}/campaigns?period=${p}`);
       const data = await res.json();
       setCampaigns(data.campaigns ?? []);
-    } catch {
-      setCampaigns([]);
-    } finally {
-      setCampaignsLoading(false);
-    }
+    } catch { setCampaigns([]); }
+    finally { setCampaignsLoading(false); }
   }, [accountId]);
 
-  useEffect(() => { fetchCampaigns(period); }, [fetchCampaigns, period]);
+  const fetchAdGroups = useCallback(async (p: PeriodValue) => {
+    setAdGroupsLoading(true);
+    try {
+      const res = await fetch(`/api/account/${accountId}/campaigns?period=${p}`);
+      const data = await res.json();
+      setAdGroupCampaigns(data.campaigns ?? []);
+    } catch { setAdGroupCampaigns([]); }
+    finally { setAdGroupsLoading(false); }
+  }, [accountId]);
 
-  // Flatten all ad groups from active campaigns for the Ad Group Performance table
-  const allAdGroups: FlatAdGroup[] = campaigns
+  useEffect(() => { fetchCampaigns(campaignPeriod); }, [fetchCampaigns, campaignPeriod]);
+  useEffect(() => { fetchAdGroups(adGroupPeriod); }, [fetchAdGroups, adGroupPeriod]);
+
+  // ── Derived data ──────────────────────────────────────────────────
+
+  const allAdGroups: FlatAdGroup[] = adGroupCampaigns
     .filter((c) => c.status === "ENABLED" || Number(c.status) === 2)
-    .flatMap((c) =>
-      c.adGroups.map((ag) => ({ ...ag, campaignName: c.name }))
-    )
+    .flatMap((c) => c.adGroups.map((ag) => ({ ...ag, campaignName: c.name })))
     .sort((a, b) => b.spend - a.spend);
 
   const hasRoas = allAdGroups.some((ag) => ag.roas !== null);
   const currency = account?.currency ?? "AUD";
+  const adGroupPeriodLabel = PERIOD_OPTIONS.find((p) => p.value === adGroupPeriod)?.label ?? "Last 30 Days";
 
   return (
     <div className="min-h-screen bg-[#08080f] text-white">
@@ -88,19 +106,16 @@ export default function AccountDetail({ accountId }: AccountDetailProps) {
       <header className="sticky top-0 z-10 border-b border-[#1e1e2e] bg-[#08080f]/90 backdrop-blur-sm">
         <div className="mx-auto max-w-[1400px] flex items-center justify-between px-6 py-4">
           <div className="flex items-center gap-4">
-            {/* Back button */}
             <button
               onClick={() => router.push("/")}
               className="flex items-center gap-1.5 text-[#4e4e63] hover:text-white transition-colors text-[12px]"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <path d="M19 12H5M12 5l-7 7 7 7" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M19 12H5M12 5l-7 7 7 7" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
               All Accounts
             </button>
-
             <span className="text-[#1e1e2e]">|</span>
-
             {accountLoading ? (
               <div className="h-4 w-48 animate-pulse rounded bg-[#1e1e2e]" />
             ) : (
@@ -112,7 +127,6 @@ export default function AccountDetail({ accountId }: AccountDetailProps) {
               </div>
             )}
           </div>
-
           {account && (
             <span className={`rounded-full border px-2.5 py-0.5 text-[10px] font-semibold ${
               account.isActive
@@ -127,13 +141,15 @@ export default function AccountDetail({ accountId }: AccountDetailProps) {
 
       <main className="mx-auto max-w-[1400px] px-6 py-6 flex flex-col gap-6">
         {error && (
-          <div className="rounded-lg border border-red-900/50 bg-red-950/30 px-4 py-3 text-sm text-red-400">{error}</div>
+          <div className="rounded-lg border border-red-900/50 bg-red-950/30 px-4 py-3 text-sm text-red-400">
+            {error}
+          </div>
         )}
 
-        {/* 4 Period metric boxes */}
+        {/* 4 period metric boxes */}
         {accountLoading ? (
           <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-            {[0,1,2,3].map(i => (
+            {[0, 1, 2, 3].map((i) => (
               <div key={i} className="h-40 animate-pulse rounded-lg bg-[#111118] border border-[#1e1e2e]" />
             ))}
           </div>
@@ -150,22 +166,71 @@ export default function AccountDetail({ accountId }: AccountDetailProps) {
           </div>
         )}
 
-        {/* Campaign breakdown */}
+        {/* Campaign Performance */}
         <CampaignTable
           campaigns={campaigns}
-          period={period}
-          onPeriodChange={(p) => setPeriod(p)}
+          period={campaignPeriod}
+          onPeriodChange={setCampaignPeriod}
           loading={campaignsLoading}
           currency={currency}
         />
 
-        {/* Ad Group Performance — flat list of all active ad groups */}
-        {!campaignsLoading && allAdGroups.length > 0 && (
-          <div className="rounded-xl border border-[#1e1e2e] bg-[#111118] overflow-hidden">
-            <div className="border-b border-[#1e1e2e] px-5 py-3.5">
+        {/* Ad Group Performance — independent period */}
+        <div className="rounded-xl border border-[#1e1e2e] bg-[#111118] overflow-hidden">
+          <div className="flex items-center justify-between border-b border-[#1e1e2e] px-5 py-3.5">
+            <div>
               <h2 className="text-sm font-semibold text-white">Ad Group Performance</h2>
-              <p className="text-[11px] text-[#4e4e63] mt-0.5">All active ad groups · {allAdGroups.length} total</p>
+              {!adGroupsLoading && (
+                <p className="text-[11px] text-[#4e4e63] mt-0.5">
+                  {allAdGroups.length} active ad groups
+                </p>
+              )}
             </div>
+
+            {/* Period dropdown — same style as Campaign Performance */}
+            <div className="relative">
+              <button
+                onClick={() => setAdGroupDropdownOpen((o) => !o)}
+                className="flex items-center gap-2 rounded-lg border border-[#1e1e2e] bg-[#0d0d18] px-3 py-1.5 text-[12px] text-white hover:border-[#00fff9]/40 transition-colors"
+              >
+                {adGroupPeriodLabel}
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+                  className={clsx("transition-transform", adGroupDropdownOpen && "rotate-180")}>
+                  <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+              {adGroupDropdownOpen && (
+                <div className="absolute right-0 top-full mt-1 z-20 rounded-lg border border-[#1e1e2e] bg-[#0d0d18] shadow-xl overflow-hidden min-w-[140px]">
+                  {PERIOD_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.value}
+                      onClick={() => { setAdGroupPeriod(opt.value); setAdGroupDropdownOpen(false); }}
+                      className={clsx(
+                        "w-full px-4 py-2 text-left text-[12px] hover:bg-[#ffffff08] transition-colors",
+                        opt.value === adGroupPeriod ? "text-[#00fff9]" : "text-[#c8c8d8]"
+                      )}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {adGroupsLoading ? (
+            <div className="flex items-center justify-center py-16 text-[#4e4e63] text-sm">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                className="animate-spin mr-2">
+                <path d="M21 12a9 9 0 11-6.219-8.56" strokeLinecap="round" />
+              </svg>
+              Loading ad groups…
+            </div>
+          ) : allAdGroups.length === 0 ? (
+            <div className="py-16 text-center text-[#4e4e63] text-sm">
+              No active ad group data for this period
+            </div>
+          ) : (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[900px]">
                 <thead>
@@ -184,20 +249,27 @@ export default function AccountDetail({ accountId }: AccountDetailProps) {
                 <tbody>
                   {allAdGroups.map((ag) => (
                     <tr key={ag.id} className="border-b border-[#1e1e2e] hover:bg-[#ffffff05]">
-                      <td className="px-5 py-3 text-[12px] font-medium text-white truncate max-w-0">
-                        <span className="truncate block">{ag.name}</span>
+                      <td className="px-5 py-3 text-[12px] font-medium text-white">
+                        <span className="block truncate">{ag.name}</span>
                       </td>
-                      <td className="px-4 py-3 text-[11px] text-[#8b8b9a] truncate max-w-0">
-                        <span className="truncate block">{ag.campaignName}</span>
+                      <td className="px-4 py-3 text-[11px] text-[#8b8b9a]">
+                        <span className="block truncate">{ag.campaignName}</span>
                       </td>
-                      <td className="px-4 py-3 text-right text-[12px] tabular-nums font-semibold text-white">{fmtSpend(ag.spend, currency)}</td>
+                      <td className="px-4 py-3 text-right text-[12px] tabular-nums font-semibold text-white">
+                        {fmtSpend(ag.spend, currency)}
+                      </td>
                       <td className="px-4 py-3 text-right text-[12px] tabular-nums text-[#c8c8d8]">{fmt(ag.clicks)}</td>
                       <td className="px-4 py-3 text-right text-[12px] tabular-nums text-[#c8c8d8]">{fmt(ag.impressions)}</td>
                       <td className="px-4 py-3 text-right text-[12px] tabular-nums text-[#c8c8d8]">{ag.ctr.toFixed(2)}%</td>
                       <td className="px-4 py-3 text-right text-[12px] tabular-nums text-[#c8c8d8]">{ag.conversionRate.toFixed(2)}%</td>
-                      <td className="px-4 py-3 text-right text-[12px] tabular-nums font-semibold text-[#00fff9]">{ag.conversions.toFixed(1)}</td>
+                      <td className="px-4 py-3 text-right text-[12px] tabular-nums font-semibold text-[#00fff9]">
+                        {ag.conversions.toFixed(1)}
+                      </td>
                       {hasRoas && (
-                        <td className={clsx("px-4 py-3 text-right text-[12px] tabular-nums", ag.roas ? "text-[#7c6aff]" : "text-[#3a3a50]")}>
+                        <td className={clsx(
+                          "px-4 py-3 text-right text-[12px] tabular-nums",
+                          ag.roas ? "text-[#7c6aff]" : "text-[#3a3a50]"
+                        )}>
                           {ag.roas ? `${ag.roas.toFixed(2)}x` : "—"}
                         </td>
                       )}
@@ -206,17 +278,11 @@ export default function AccountDetail({ accountId }: AccountDetailProps) {
                 </tbody>
               </table>
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
-        {/* Conversion trend — this account only */}
-        {account && account.trend.length > 0 && (
-          <ConversionsTrend
-            data={account.trend}
-            title="Conversions Trend"
-            subtitle="This account · Last 30 days"
-          />
-        )}
+        {/* Conversions Trend — self-fetching, account-specific, with period selector */}
+        <ConversionsTrend accountId={accountId} title="Conversions Trend" />
       </main>
     </div>
   );

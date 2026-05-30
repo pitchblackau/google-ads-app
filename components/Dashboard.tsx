@@ -104,7 +104,7 @@ export default function Dashboard() {
                 ))}
               </div>
 
-              <ConversionsTrend data={data.conversionsTrend} />
+              <ConversionsTrend />
             </>
           )}
         </main>

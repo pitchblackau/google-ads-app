@@ -47,12 +47,19 @@ export const MOCK_ACCOUNTS: Account[] = BASE_ACCOUNTS.map((a) => ({
   trend: a.isActive ? mockTrend() : [],
 }));
 
-export function generateMockTrend(): DailyConversion[] {
-  return Array.from({ length: 30 }, (_, i) => {
-    const date = format(subDays(new Date(), 29 - i), "yyyy-MM-dd");
+export function generateMockTrend(days = 30): DailyConversion[] {
+  return Array.from({ length: days }, (_, i) => {
+    const date = format(subDays(new Date(), days - 1 - i), "yyyy-MM-dd");
     const conversions = MOCK_ACCOUNTS.filter(a => a.isActive).reduce((sum) => {
       return sum + Math.round(rand(5, 80));
     }, 0);
     return { date, conversions };
   });
+}
+
+export function generateMockAccountTrend(days = 30): DailyConversion[] {
+  return Array.from({ length: days }, (_, i) => ({
+    date: format(subDays(new Date(), days - 1 - i), "yyyy-MM-dd"),
+    conversions: Math.round(rand(2, 40)),
+  }));
 }
