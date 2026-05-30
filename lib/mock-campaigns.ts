@@ -15,6 +15,7 @@ function mockRow(scale = 1) {
     impressions,
     ctr: impressions > 0 ? Math.round((clicks / impressions) * 10000) / 100 : 0,
     conversions,
+    conversionRate: clicks > 0 ? Math.round((conversions / clicks) * 10000) / 100 : 0,
     spend,
     conversionValue,
     roas: conversionValue > 0 && spend > 0 ? Math.round((conversionValue / spend) * 100) / 100 : null,

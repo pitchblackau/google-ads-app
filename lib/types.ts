@@ -41,6 +41,7 @@ export interface AdGroupData {
   impressions: number;
   ctr: number;
   conversions: number;
+  conversionRate: number;
   spend: number;
   conversionValue: number;
   roas: number | null;
@@ -54,6 +55,7 @@ export interface CampaignData {
   impressions: number;
   ctr: number;
   conversions: number;
+  conversionRate: number;
   spend: number;
   conversionValue: number;
   roas: number | null;

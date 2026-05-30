@@ -169,11 +169,13 @@ function parseCampaignMetrics(row: any) {
   const conversionValue = Math.round(Number(row?.metrics?.conversions_value ?? 0) * 100) / 100;
   const clicks = Number(row?.metrics?.clicks ?? 0);
   const impressions = Number(row?.metrics?.impressions ?? 0);
+  const conversions = Math.round(Number(row?.metrics?.conversions ?? 0) * 100) / 100;
   return {
     clicks,
     impressions,
     ctr: impressions > 0 ? Math.round((clicks / impressions) * 10000) / 100 : 0,
-    conversions: Math.round(Number(row?.metrics?.conversions ?? 0) * 100) / 100,
+    conversions,
+    conversionRate: clicks > 0 ? Math.round((conversions / clicks) * 10000) / 100 : 0,
     spend,
     conversionValue,
     roas: conversionValue > 0 && spend > 0 ? Math.round((conversionValue / spend) * 100) / 100 : null,
@@ -195,8 +197,8 @@ export async function fetchCampaigns(customerId: string, period: string): Promis
   `;
 
   const [campaignRows, adGroupRows] = await Promise.all([
-    customer.query(`SELECT ${CAMP_FIELDS} FROM campaign WHERE segments.date DURING ${period} AND campaign.status != 'REMOVED' ORDER BY metrics.cost_micros DESC`),
-    customer.query(`SELECT ${AG_FIELDS} FROM ad_group WHERE segments.date DURING ${period} AND ad_group.status != 'REMOVED' ORDER BY metrics.cost_micros DESC`),
+    customer.query(`SELECT ${CAMP_FIELDS} FROM campaign WHERE segments.date DURING ${period} AND campaign.status = 'ENABLED' ORDER BY metrics.cost_micros DESC`),
+    customer.query(`SELECT ${AG_FIELDS} FROM ad_group WHERE segments.date DURING ${period} AND campaign.status = 'ENABLED' AND ad_group.status = 'ENABLED' ORDER BY metrics.cost_micros DESC`),
   ]);
 
   const adGroupsByCampaign: Record<string, AdGroupData[]> = {};

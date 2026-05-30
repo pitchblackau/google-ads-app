@@ -2,11 +2,12 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Account, CampaignData, PeriodValue } from "@/lib/types";
+import { Account, AdGroupData, CampaignData, PeriodValue } from "@/lib/types";
 import MetricBox from "./MetricBox";
 import CampaignTable from "./CampaignTable";
 import ConversionsTrend from "./ConversionsTrend";
 import { format, parseISO } from "date-fns";
+import { clsx } from "clsx";
 
 const PERIODS = ["today", "thisWeek", "thisMonth", "last30Days"] as const;
 const PERIOD_LABELS = {
@@ -18,6 +19,20 @@ const PERIOD_LABELS = {
 
 interface AccountDetailProps {
   accountId: string;
+}
+
+function fmt(n: number) {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return n.toLocaleString();
+}
+function fmtSpend(n: number, currency: string) {
+  return new Intl.NumberFormat("en-AU", { style: "currency", currency, maximumFractionDigits: 0 }).format(n);
+}
+
+// Flat ad group entry with the parent campaign name
+interface FlatAdGroup extends AdGroupData {
+  campaignName: string;
 }
 
 export default function AccountDetail({ accountId }: AccountDetailProps) {
@@ -55,6 +70,17 @@ export default function AccountDetail({ accountId }: AccountDetailProps) {
   }, [accountId]);
 
   useEffect(() => { fetchCampaigns(period); }, [fetchCampaigns, period]);
+
+  // Flatten all ad groups from active campaigns for the Ad Group Performance table
+  const allAdGroups: FlatAdGroup[] = campaigns
+    .filter((c) => c.status === "ENABLED")
+    .flatMap((c) =>
+      c.adGroups.map((ag) => ({ ...ag, campaignName: c.name }))
+    )
+    .sort((a, b) => b.spend - a.spend);
+
+  const hasRoas = allAdGroups.some((ag) => ag.roas !== null);
+  const currency = account?.currency ?? "AUD";
 
   return (
     <div className="min-h-screen bg-[#08080f] text-white">
@@ -104,7 +130,7 @@ export default function AccountDetail({ accountId }: AccountDetailProps) {
           <div className="rounded-lg border border-red-900/50 bg-red-950/30 px-4 py-3 text-sm text-red-400">{error}</div>
         )}
 
-        {/* 4 Period boxes — same as main page */}
+        {/* 4 Period metric boxes */}
         {accountLoading ? (
           <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
             {[0,1,2,3].map(i => (
@@ -130,12 +156,66 @@ export default function AccountDetail({ accountId }: AccountDetailProps) {
           period={period}
           onPeriodChange={(p) => setPeriod(p)}
           loading={campaignsLoading}
-          currency={account?.currency ?? "AUD"}
+          currency={currency}
         />
 
-        {/* Conversion trend */}
+        {/* Ad Group Performance — flat list of all active ad groups */}
+        {!campaignsLoading && allAdGroups.length > 0 && (
+          <div className="rounded-xl border border-[#1e1e2e] bg-[#111118] overflow-hidden">
+            <div className="border-b border-[#1e1e2e] px-5 py-3.5">
+              <h2 className="text-sm font-semibold text-white">Ad Group Performance</h2>
+              <p className="text-[11px] text-[#4e4e63] mt-0.5">All active ad groups · {allAdGroups.length} total</p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[900px]">
+                <thead>
+                  <tr className="border-b border-[#1e1e2e]">
+                    <th className="px-5 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-[#4e4e63] w-[22%]">Ad Group</th>
+                    <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-[#4e4e63] w-[20%]">Campaign</th>
+                    <th className="px-4 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-[#4e4e63]">Spend</th>
+                    <th className="px-4 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-[#4e4e63]">Clicks</th>
+                    <th className="px-4 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-[#4e4e63]">Impressions</th>
+                    <th className="px-4 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-[#4e4e63]">CTR</th>
+                    <th className="px-4 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-[#4e4e63]">Conv. Rate</th>
+                    <th className="px-4 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-[#4e4e63]">Conversions</th>
+                    {hasRoas && <th className="px-4 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-[#4e4e63]">ROAS</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {allAdGroups.map((ag) => (
+                    <tr key={ag.id} className="border-b border-[#1e1e2e] hover:bg-[#ffffff05]">
+                      <td className="px-5 py-3 text-[12px] font-medium text-white truncate max-w-0">
+                        <span className="truncate block">{ag.name}</span>
+                      </td>
+                      <td className="px-4 py-3 text-[11px] text-[#8b8b9a] truncate max-w-0">
+                        <span className="truncate block">{ag.campaignName}</span>
+                      </td>
+                      <td className="px-4 py-3 text-right text-[12px] tabular-nums font-semibold text-white">{fmtSpend(ag.spend, currency)}</td>
+                      <td className="px-4 py-3 text-right text-[12px] tabular-nums text-[#c8c8d8]">{fmt(ag.clicks)}</td>
+                      <td className="px-4 py-3 text-right text-[12px] tabular-nums text-[#c8c8d8]">{fmt(ag.impressions)}</td>
+                      <td className="px-4 py-3 text-right text-[12px] tabular-nums text-[#c8c8d8]">{ag.ctr.toFixed(2)}%</td>
+                      <td className="px-4 py-3 text-right text-[12px] tabular-nums text-[#c8c8d8]">{ag.conversionRate.toFixed(2)}%</td>
+                      <td className="px-4 py-3 text-right text-[12px] tabular-nums font-semibold text-[#00fff9]">{ag.conversions.toFixed(1)}</td>
+                      {hasRoas && (
+                        <td className={clsx("px-4 py-3 text-right text-[12px] tabular-nums", ag.roas ? "text-[#7c6aff]" : "text-[#3a3a50]")}>
+                          {ag.roas ? `${ag.roas.toFixed(2)}x` : "—"}
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Conversion trend — this account only */}
         {account && account.trend.length > 0 && (
-          <ConversionsTrend data={account.trend} />
+          <ConversionsTrend
+            data={account.trend}
+            title="Conversions Trend"
+            subtitle="This account · Last 30 days"
+          />
         )}
       </main>
     </div>

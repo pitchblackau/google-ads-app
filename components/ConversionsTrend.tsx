@@ -14,6 +14,8 @@ import { format, parseISO } from "date-fns";
 
 interface ConversionsTrendProps {
   data: DailyConversion[];
+  title?: string;
+  subtitle?: string;
 }
 
 function CustomTooltip({ active, payload }: any) {
@@ -32,7 +34,11 @@ function CustomTooltip({ active, payload }: any) {
   );
 }
 
-export default function ConversionsTrend({ data }: ConversionsTrendProps) {
+export default function ConversionsTrend({
+  data,
+  title = "Conversions Trend — All Active Accounts",
+  subtitle = "Last 30 days",
+}: ConversionsTrendProps) {
   const totalConversions = data.reduce((s, d) => s + d.conversions, 0);
   const avgDaily = data.length ? Math.round(totalConversions / data.length) : 0;
 
@@ -45,10 +51,8 @@ export default function ConversionsTrend({ data }: ConversionsTrendProps) {
     <div className="rounded-xl border border-[#1e1e2e] bg-[#111118] p-5">
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-sm font-semibold text-white">
-            Conversions Trend — All Active Accounts
-          </h2>
-          <p className="mt-0.5 text-[12px] text-[#4e4e63]">Last 30 days</p>
+          <h2 className="text-sm font-semibold text-white">{title}</h2>
+          <p className="mt-0.5 text-[12px] text-[#4e4e63]">{subtitle}</p>
         </div>
         <div className="flex gap-6">
           <Stat label="Total Conversions" value={totalConversions.toLocaleString()} />

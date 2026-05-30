@@ -17,11 +17,7 @@ export default function Sidebar({ accounts }: SidebarProps) {
   const currentId = pathname.startsWith("/account/") ? pathname.split("/")[2] : null;
 
   function handleClick(account: Account) {
-    if (pathname === "/") {
-      document.getElementById(`account-${account.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
-    } else {
-      router.push(`/account/${account.id}`);
-    }
+    router.push(`/account/${account.id}`);
   }
 
   return (

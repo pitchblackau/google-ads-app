@@ -25,7 +25,9 @@ export default function CampaignTable({ campaigns, period, onPeriodChange, loadi
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
-  const hasRoas = campaigns.some((c) => c.roas !== null);
+  // Only show enabled campaigns (safety net — API already filters, but guard here too)
+  const activeCampaigns = campaigns.filter((c) => c.status === "ENABLED");
+  const hasRoas = activeCampaigns.some((c) => c.roas !== null);
   const currentLabel = PERIOD_OPTIONS.find((p) => p.value === period)?.label ?? "Last 30 Days";
 
   function toggle(id: string) {
@@ -83,26 +85,27 @@ export default function CampaignTable({ campaigns, period, onPeriodChange, loadi
           </svg>
           Loading campaigns…
         </div>
-      ) : campaigns.length === 0 ? (
-        <div className="py-16 text-center text-[#4e4e63] text-sm">No campaign data for this period</div>
+      ) : activeCampaigns.length === 0 ? (
+        <div className="py-16 text-center text-[#4e4e63] text-sm">No active campaign data for this period</div>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[700px]">
+          <table className="w-full min-w-[800px]">
             <thead>
               <tr className="border-b border-[#1e1e2e]">
-                <th className="px-5 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-[#4e4e63] w-[35%]">
-                  Campaign / Ad Group
+                <th className="px-5 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-[#4e4e63] w-[30%]">
+                  Campaign
                 </th>
                 <th className={HEAD}>Spend</th>
                 <th className={HEAD}>Clicks</th>
                 <th className={HEAD}>Impressions</th>
                 <th className={HEAD}>CTR</th>
+                <th className={HEAD}>Conv. Rate</th>
                 <th className={HEAD}>Conversions</th>
                 {hasRoas && <th className={HEAD}>ROAS</th>}
               </tr>
             </thead>
             <tbody>
-              {campaigns.map((camp) => {
+              {activeCampaigns.map((camp) => {
                 const isOpen = expanded.has(camp.id);
                 return (
                   <React.Fragment key={camp.id}>
@@ -127,13 +130,14 @@ export default function CampaignTable({ campaigns, period, onPeriodChange, loadi
                       <td className={COL}>{fmt(camp.clicks)}</td>
                       <td className={COL}>{fmt(camp.impressions)}</td>
                       <td className={COL}>{camp.ctr.toFixed(2)}%</td>
+                      <td className={COL}>{camp.conversionRate.toFixed(2)}%</td>
                       <td className={clsx(COL, "font-semibold text-[#00fff9]")}>{camp.conversions.toFixed(1)}</td>
                       {hasRoas && <td className={clsx(COL, camp.roas ? "text-[#7c6aff]" : "text-[#3a3a50]")}>
                         {camp.roas ? `${camp.roas.toFixed(2)}x` : "—"}
                       </td>}
                     </tr>
 
-                    {/* Ad group rows */}
+                    {/* Ad group rows (expanded) */}
                     {isOpen && camp.adGroups.map((ag) => (
                       <tr key={ag.id} className="border-b border-[#1a1a26] bg-[#0a0a12] hover:bg-[#0d0d18]">
                         <td className="pl-12 pr-5 py-2.5 text-[11px] text-[#8b8b9a]">
@@ -146,6 +150,7 @@ export default function CampaignTable({ campaigns, period, onPeriodChange, loadi
                         <td className={clsx(COL, "text-[11px] text-[#8b8b9a]")}>{fmt(ag.clicks)}</td>
                         <td className={clsx(COL, "text-[11px] text-[#8b8b9a]")}>{fmt(ag.impressions)}</td>
                         <td className={clsx(COL, "text-[11px] text-[#8b8b9a]")}>{ag.ctr.toFixed(2)}%</td>
+                        <td className={clsx(COL, "text-[11px] text-[#8b8b9a]")}>{ag.conversionRate.toFixed(2)}%</td>
                         <td className={clsx(COL, "text-[11px] text-[#8b8b9a]")}>{ag.conversions.toFixed(1)}</td>
                         {hasRoas && <td className={clsx(COL, "text-[11px]", ag.roas ? "text-[#7c6aff]" : "text-[#3a3a50]")}>
                           {ag.roas ? `${ag.roas.toFixed(2)}x` : "—"}
