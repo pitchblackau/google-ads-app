@@ -1,5 +1,5 @@
 import { GoogleAdsApi } from "google-ads-api";
-import { Account, DailyConversion } from "./types";
+import { Account, CampaignData, AdGroupData, DailyConversion } from "./types";
 
 let _client: GoogleAdsApi | null = null;
 
@@ -138,4 +138,83 @@ export async function fetchDashboard(): Promise<DashboardPayload> {
   accounts.sort((a, b) => Number(b.isActive) - Number(a.isActive));
 
   return { accounts, conversionsTrend };
+}
+
+// ── Account detail (single account) ─────────────────────────────
+
+export async function fetchAccountDetail(customerId: string): Promise<Account> {
+  const mcc = getCustomer(process.env.GOOGLE_ADS_MCC_CUSTOMER_ID!);
+  const infoRows = await mcc.query(`
+    SELECT customer_client.id, customer_client.descriptive_name, customer_client.currency_code
+    FROM customer_client
+    WHERE customer_client.id = ${customerId}
+  `);
+  const info = infoRows[0];
+  const { isActive, metrics, trend } = await fetchAccountData(customerId);
+  return {
+    id: customerId,
+    name: info?.customer_client?.descriptive_name ?? `Account ${customerId}`,
+    currency: info?.customer_client?.currency_code ?? "AUD",
+    status: "ENABLED",
+    isActive,
+    metrics,
+    trend,
+  };
+}
+
+// ── Campaign + ad group breakdown ────────────────────────────────
+
+function parseCampaignMetrics(row: any) {
+  const spend = Math.round((Number(row?.metrics?.cost_micros ?? 0) / 1_000_000) * 100) / 100;
+  const conversionValue = Math.round(Number(row?.metrics?.conversions_value ?? 0) * 100) / 100;
+  const clicks = Number(row?.metrics?.clicks ?? 0);
+  const impressions = Number(row?.metrics?.impressions ?? 0);
+  return {
+    clicks,
+    impressions,
+    ctr: impressions > 0 ? Math.round((clicks / impressions) * 10000) / 100 : 0,
+    conversions: Math.round(Number(row?.metrics?.conversions ?? 0) * 100) / 100,
+    spend,
+    conversionValue,
+    roas: conversionValue > 0 && spend > 0 ? Math.round((conversionValue / spend) * 100) / 100 : null,
+  };
+}
+
+export async function fetchCampaigns(customerId: string, period: string): Promise<CampaignData[]> {
+  const customer = getCustomer(customerId);
+
+  const CAMP_FIELDS = `
+    campaign.id, campaign.name, campaign.status,
+    metrics.cost_micros, metrics.clicks, metrics.impressions,
+    metrics.conversions, metrics.conversions_value
+  `;
+  const AG_FIELDS = `
+    campaign.id, ad_group.id, ad_group.name, ad_group.status,
+    metrics.cost_micros, metrics.clicks, metrics.impressions,
+    metrics.conversions, metrics.conversions_value
+  `;
+
+  const [campaignRows, adGroupRows] = await Promise.all([
+    customer.query(`SELECT ${CAMP_FIELDS} FROM campaign WHERE segments.date DURING ${period} AND campaign.status != 'REMOVED' ORDER BY metrics.cost_micros DESC`),
+    customer.query(`SELECT ${AG_FIELDS} FROM ad_group WHERE segments.date DURING ${period} AND ad_group.status != 'REMOVED' ORDER BY metrics.cost_micros DESC`),
+  ]);
+
+  const adGroupsByCampaign: Record<string, AdGroupData[]> = {};
+  for (const row of adGroupRows) {
+    const cid = String(row.campaign!.id);
+    if (!adGroupsByCampaign[cid]) adGroupsByCampaign[cid] = [];
+    adGroupsByCampaign[cid].push({
+      id: String(row.ad_group!.id),
+      name: row.ad_group!.name ?? "",
+      ...parseCampaignMetrics(row),
+    });
+  }
+
+  return campaignRows.map((row) => ({
+    id: String(row.campaign!.id),
+    name: row.campaign!.name ?? "",
+    status: String(row.campaign!.status ?? ""),
+    ...parseCampaignMetrics(row),
+    adGroups: adGroupsByCampaign[String(row.campaign!.id)] ?? [],
+  }));
 }

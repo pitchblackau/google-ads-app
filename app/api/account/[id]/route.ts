@@ -1,0 +1,25 @@
+import { NextResponse } from "next/server";
+import { fetchAccountDetail } from "@/lib/google-ads";
+import { MOCK_ACCOUNTS } from "@/lib/mock-data";
+
+export const maxDuration = 60;
+const USE_MOCK = !process.env.GOOGLE_ADS_DEVELOPER_TOKEN;
+
+export async function GET(
+  _req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+  try {
+    if (USE_MOCK) {
+      const account = MOCK_ACCOUNTS.find((a) => a.id === id);
+      if (!account) return NextResponse.json({ error: "Not found" }, { status: 404 });
+      return NextResponse.json(account);
+    }
+    const account = await fetchAccountDetail(id);
+    return NextResponse.json(account);
+  } catch (err) {
+    console.error("Account detail error:", err);
+    return NextResponse.json({ error: "Failed to fetch account" }, { status: 500 });
+  }
+}

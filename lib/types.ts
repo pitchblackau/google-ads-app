@@ -33,3 +33,38 @@ export interface DashboardData {
   conversionsTrend: DailyConversion[];
   lastUpdated: string;
 }
+
+export interface AdGroupData {
+  id: string;
+  name: string;
+  clicks: number;
+  impressions: number;
+  ctr: number;
+  conversions: number;
+  spend: number;
+  conversionValue: number;
+  roas: number | null;
+}
+
+export interface CampaignData {
+  id: string;
+  name: string;
+  status: string;
+  clicks: number;
+  impressions: number;
+  ctr: number;
+  conversions: number;
+  spend: number;
+  conversionValue: number;
+  roas: number | null;
+  adGroups: AdGroupData[];
+}
+
+export const PERIOD_OPTIONS = [
+  { label: "Last 30 Days",  value: "LAST_30_DAYS"       },
+  { label: "This Month",    value: "THIS_MONTH"          },
+  { label: "This Week",     value: "THIS_WEEK_SUN_TODAY" },
+  { label: "Today",         value: "TODAY"               },
+] as const;
+
+export type PeriodValue = typeof PERIOD_OPTIONS[number]["value"];

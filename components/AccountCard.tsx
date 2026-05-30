@@ -1,12 +1,12 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { Account } from "@/lib/types";
 import MetricBox from "./MetricBox";
 import { clsx } from "clsx";
 
 interface AccountCardProps {
   account: Account;
-  onOpenDetail: (account: Account) => void;
 }
 
 const PERIODS = [
@@ -16,7 +16,9 @@ const PERIODS = [
   { key: "last30Days" as const, label: "Last 30 Days" },
 ] as const;
 
-export default function AccountCard({ account, onOpenDetail }: AccountCardProps) {
+export default function AccountCard({ account }: AccountCardProps) {
+  const router = useRouter();
+
   return (
     <div
       id={`account-${account.id}`}
@@ -27,7 +29,7 @@ export default function AccountCard({ account, onOpenDetail }: AccountCardProps)
     >
       <div className="flex items-start justify-between">
         <button
-          onClick={() => onOpenDetail(account)}
+          onClick={() => router.push(`/account/${account.id}`)}
           className="group flex items-center gap-2 text-left"
         >
           <div>
