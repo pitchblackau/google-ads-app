@@ -32,9 +32,12 @@ export default function AccountDetail({ accountId }: AccountDetailProps) {
   // Fetch account header data once
   useEffect(() => {
     fetch(`/api/account/${accountId}`)
-      .then((r) => r.json())
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
       .then((data) => { setAccount(data); setAccountLoading(false); })
-      .catch(() => { setError("Failed to load account"); setAccountLoading(false); });
+      .catch((e) => { setError(`Failed to load account: ${e.message}`); setAccountLoading(false); });
   }, [accountId]);
 
   // Fetch campaigns when period changes

@@ -8,13 +8,12 @@ const USE_MOCK = !process.env.GOOGLE_ADS_DEVELOPER_TOKEN;
 
 const VALID_PERIODS = ["TODAY", "THIS_WEEK_SUN_TODAY", "THIS_MONTH", "LAST_30_DAYS"];
 
-function getCachedCampaigns(id: string, period: string) {
-  return unstable_cache(
-    () => fetchCampaigns(id, period),
-    [`campaigns-${id}-${period}`],
-    { revalidate: 300 }
-  )();
-}
+// Module-level cached function — key is ["campaigns", id, period]
+const getCachedCampaigns = unstable_cache(
+  async (id: string, period: string) => fetchCampaigns(id, period),
+  ["campaigns"],
+  { revalidate: 300 }
+);
 
 export async function GET(
   req: Request,

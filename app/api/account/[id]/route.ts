@@ -6,13 +6,12 @@ import { MOCK_ACCOUNTS } from "@/lib/mock-data";
 export const maxDuration = 60;
 const USE_MOCK = !process.env.GOOGLE_ADS_DEVELOPER_TOKEN;
 
-function getCachedAccountDetail(id: string) {
-  return unstable_cache(
-    () => fetchAccountDetail(id),
-    [`account-detail-${id}`],
-    { revalidate: 300 }
-  )();
-}
+// Module-level cached function — key is ["account-detail", id]
+const getCachedAccountDetail = unstable_cache(
+  async (id: string) => fetchAccountDetail(id),
+  ["account-detail"],
+  { revalidate: 300 }
+);
 
 export async function GET(
   _req: Request,

@@ -16,12 +16,14 @@ interface ConversionsTrendProps {
   data: DailyConversion[];
 }
 
-function CustomTooltip({ active, payload, label }: any) {
+function CustomTooltip({ active, payload }: any) {
   if (!active || !payload?.length) return null;
+  // Use the raw ISO date from the data point, not the formatted XAxis label
+  const rawDate: string = payload[0]?.payload?.date ?? "";
   return (
     <div className="rounded-lg border border-[#1e1e2e] bg-[#0d0d18] px-3 py-2 shadow-xl">
       <p className="text-[11px] text-[#8b8b9a]">
-        {format(parseISO(label), "dd MMM yyyy")}
+        {rawDate ? format(parseISO(rawDate), "dd MMM yyyy") : ""}
       </p>
       <p className="text-sm font-semibold text-[#00fff9]">
         {payload[0].value.toLocaleString()} conversions
