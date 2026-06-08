@@ -95,13 +95,15 @@ async function fetchAccountData(customerId: string) {
   const d90Str = d90.toISOString().slice(0, 10);
   const todayStr = now.toISOString().slice(0, 10);
 
-  const [today, thisWeek, thisMonth, last30Days, spend90, trendRows] = await Promise.all([
+  const [today, thisWeek, thisMonth, last30Days, spend90, trendRows, last3Months, thisYear] = await Promise.all([
     customer.query(`SELECT ${METRICS_FIELDS} FROM customer WHERE segments.date DURING TODAY`),
     customer.query(`SELECT ${METRICS_FIELDS} FROM customer WHERE segments.date DURING LAST_7_DAYS`),
     customer.query(`SELECT ${METRICS_FIELDS} FROM customer WHERE segments.date DURING THIS_MONTH`),
     customer.query(`SELECT ${METRICS_FIELDS} FROM customer WHERE segments.date DURING LAST_30_DAYS`),
     customer.query(`SELECT metrics.cost_micros FROM customer WHERE segments.date >= '${d90Str}' AND segments.date <= '${todayStr}'`),
     customer.query(`SELECT segments.date, metrics.conversions FROM customer WHERE segments.date DURING LAST_30_DAYS ORDER BY segments.date ASC`),
+    customer.query(`SELECT ${METRICS_FIELDS} FROM customer WHERE segments.date DURING LAST_90_DAYS`),
+    customer.query(`SELECT ${METRICS_FIELDS} FROM customer WHERE segments.date DURING THIS_YEAR`),
   ]);
 
   const totalSpend90 = spend90.reduce((sum: number, r: any) => sum + Number(r?.metrics?.cost_micros ?? 0), 0);
@@ -122,6 +124,8 @@ async function fetchAccountData(customerId: string) {
       thisWeek: parseMetrics(thisWeek[0]),
       thisMonth: parseMetrics(thisMonth[0]),
       last30Days: parseMetrics(last30Days[0]),
+      last3Months: parseMetrics(last3Months[0]),
+      thisYear: parseMetrics(thisYear[0]),
     },
     trend,
     trendMap,

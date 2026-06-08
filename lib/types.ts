@@ -11,6 +11,8 @@ export interface TimePeriodMetrics {
   thisWeek: AccountMetrics;
   thisMonth: AccountMetrics;
   last30Days: AccountMetrics;
+  last3Months: AccountMetrics;
+  thisYear: AccountMetrics;
 }
 
 export interface Account {
@@ -72,6 +74,12 @@ export const TREND_PERIOD_OPTIONS = [
 
 export type TrendPeriodValue = typeof TREND_PERIOD_OPTIONS[number]["value"];
 
+export interface SuggestionDetail {
+  label: string;   // keyword text, search term, campaign name, etc.
+  meta?: string;   // QS score, spend, status, etc.
+  value?: string;  // conversions, ROAS, etc.
+}
+
 export interface Suggestion {
   id: string;
   type: "warning" | "opportunity" | "info";
@@ -79,6 +87,7 @@ export interface Suggestion {
   impact: "high" | "medium" | "low";
   title: string;
   description: string;
+  details?: SuggestionDetail[];
 }
 
 export const PERIOD_OPTIONS = [

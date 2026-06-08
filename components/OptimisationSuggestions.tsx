@@ -18,7 +18,6 @@ const TYPE_CONFIG = {
           strokeLinecap="round" strokeLinejoin="round" />
       </svg>
     ),
-    dot: "bg-amber-400",
   },
   opportunity: {
     bg: "bg-[#00fff9]/5",
@@ -28,7 +27,6 @@ const TYPE_CONFIG = {
         <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
     ),
-    dot: "bg-[#00fff9]",
   },
   info: {
     bg: "bg-blue-500/5",
@@ -39,7 +37,6 @@ const TYPE_CONFIG = {
         <path d="M12 16v-4m0-4h.01" strokeLinecap="round" />
       </svg>
     ),
-    dot: "bg-blue-400",
   },
 } as const;
 
@@ -59,8 +56,9 @@ const CATEGORY_LABELS: Record<Suggestion["category"], string> = {
 
 export default function OptimisationSuggestions({ accountId }: Props) {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  const [loading, setLoading]         = useState(true);
+  const [error, setError]             = useState(false);
+  const [expandedId, setExpandedId]   = useState<string | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -73,6 +71,11 @@ export default function OptimisationSuggestions({ accountId }: Props) {
       .catch(() => setError(true))
       .finally(() => setLoading(false));
   }, [accountId]);
+
+  function toggle(id: string, hasDetails: boolean) {
+    if (!hasDetails) return;
+    setExpandedId((prev) => (prev === id ? null : id));
+  }
 
   return (
     <div className="rounded-xl border border-[#1e1e2e] bg-[#111118] overflow-hidden">
@@ -114,10 +117,21 @@ export default function OptimisationSuggestions({ accountId }: Props) {
       ) : (
         <div className="divide-y divide-[#1a1a26]">
           {suggestions.map((s) => {
-            const tc = TYPE_CONFIG[s.type];
-            const ic = IMPACT_CONFIG[s.impact];
+            const tc         = TYPE_CONFIG[s.type];
+            const ic         = IMPACT_CONFIG[s.impact];
+            const hasDetails = !!(s.details && s.details.length > 0);
+            const isOpen     = expandedId === s.id;
+
             return (
-              <div key={s.id} className={clsx("flex gap-4 px-5 py-4", tc.bg, "border-l-2", tc.border)}>
+              <div
+                key={s.id}
+                onClick={() => toggle(s.id, hasDetails)}
+                className={clsx(
+                  "flex gap-4 px-5 py-4",
+                  tc.bg, "border-l-2", tc.border,
+                  hasDetails && "cursor-pointer select-none"
+                )}
+              >
                 {/* Icon */}
                 <div className="shrink-0 mt-0.5 h-8 w-8 rounded-lg bg-[#0b0b14] border border-[#1e1e2e] flex items-center justify-center">
                   {tc.icon}
@@ -125,6 +139,7 @@ export default function OptimisationSuggestions({ accountId }: Props) {
 
                 {/* Content */}
                 <div className="flex-1 min-w-0">
+                  {/* Title row */}
                   <div className="flex flex-wrap items-start gap-2 mb-1">
                     <p className="text-[13px] font-semibold text-white leading-snug flex-1">{s.title}</p>
                     <div className="flex items-center gap-1.5 shrink-0">
@@ -134,9 +149,54 @@ export default function OptimisationSuggestions({ accountId }: Props) {
                       <span className="rounded-full border border-[#2a2a3a] bg-[#0d0d18] px-2 py-0.5 text-[10px] text-[#6b6b7e]">
                         {CATEGORY_LABELS[s.category]}
                       </span>
+                      {/* Chevron */}
+                      {hasDetails && (
+                        <svg
+                          width="14" height="14" viewBox="0 0 24 24" fill="none"
+                          stroke="#4e4e63" strokeWidth="2.5"
+                          className={clsx("transition-transform shrink-0", isOpen && "rotate-180")}
+                        >
+                          <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      )}
                     </div>
                   </div>
-                  <p className="text-[12px] sm:text-[12px] text-[#8b8b9a] leading-relaxed">{s.description}</p>
+
+                  <p className="text-[12px] text-[#8b8b9a] leading-relaxed">{s.description}</p>
+
+                  {/* Accordion detail rows */}
+                  {hasDetails && isOpen && (
+                    <div className="mt-3 border-t border-[#1e1e2e]/80 pt-3 flex flex-col gap-1">
+                      {/* Column headers */}
+                      <div className="flex items-center justify-between gap-3 px-2 pb-1">
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-[#3a3a50]">Item</span>
+                        <div className="flex items-center gap-6 shrink-0">
+                          <span className="text-[10px] font-semibold uppercase tracking-wider text-[#3a3a50] w-24 text-right">Detail</span>
+                          <span className="text-[10px] font-semibold uppercase tracking-wider text-[#3a3a50] w-20 text-right">Value</span>
+                        </div>
+                      </div>
+                      {s.details!.map((d, i) => (
+                        <div
+                          key={i}
+                          className="flex items-center justify-between gap-3 rounded-md px-2 py-1.5 hover:bg-[#ffffff05]"
+                        >
+                          <span className="text-[12px] text-[#c8c8d8] truncate">{d.label}</span>
+                          <div className="flex items-center gap-6 shrink-0">
+                            {d.meta ? (
+                              <span className="text-[11px] text-[#6b6b7e] w-24 text-right">{d.meta}</span>
+                            ) : (
+                              <span className="w-24" />
+                            )}
+                            {d.value ? (
+                              <span className="text-[11px] font-semibold text-[#8b8b9a] w-20 text-right">{d.value}</span>
+                            ) : (
+                              <span className="w-20" />
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             );
