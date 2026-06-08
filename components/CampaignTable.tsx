@@ -124,8 +124,10 @@ export default function CampaignTable({ campaigns, period, onPeriodChange, loadi
                             <path d="M9 18l6-6-6-6" strokeLinecap="round"/>
                           </svg>
                           {camp.name}
-                          {camp.adGroups.length > 0 && (
-                            <span className="text-[10px] text-[#4e4e63]">({camp.adGroups.length} ad groups)</span>
+                          {camp.adGroups.filter(ag => ag.status === "ENABLED" || Number(ag.status) === 2).length > 0 && (
+                            <span className="text-[10px] text-[#4e4e63]">
+                              ({camp.adGroups.filter(ag => ag.status === "ENABLED" || Number(ag.status) === 2).length} ad groups)
+                            </span>
                           )}
                         </span>
                       </td>
@@ -140,8 +142,10 @@ export default function CampaignTable({ campaigns, period, onPeriodChange, loadi
                       </td>}
                     </tr>
 
-                    {/* Ad group rows (expanded) */}
-                    {isOpen && camp.adGroups.map((ag) => (
+                    {/* Ad group rows (expanded) — hide paused */}
+                    {isOpen && camp.adGroups
+                      .filter((ag) => ag.status === "ENABLED" || Number(ag.status) === 2)
+                      .map((ag) => (
                       <tr key={ag.id} className="border-b border-[#1a1a26] bg-[#0a0a12] hover:bg-[#0d0d18]">
                         <td className="pl-12 pr-5 py-2.5 text-[11px] text-[#8b8b9a]">
                           <span className="flex items-center gap-2">

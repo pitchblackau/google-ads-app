@@ -6,7 +6,7 @@ import { generateMockCampaigns } from "@/lib/mock-campaigns";
 export const maxDuration = 60;
 const USE_MOCK = !process.env.GOOGLE_ADS_DEVELOPER_TOKEN;
 
-const VALID_PERIODS = ["TODAY", "THIS_WEEK_SUN_TODAY", "THIS_MONTH", "LAST_30_DAYS"];
+const VALID_PERIODS = ["TODAY", "LAST_7_DAYS", "THIS_MONTH", "LAST_30_DAYS"];
 
 // Module-level cached function — key is ["campaigns", id, period]
 const getCachedCampaigns = unstable_cache(

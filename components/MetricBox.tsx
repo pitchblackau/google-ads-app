@@ -26,7 +26,7 @@ function fmtSpend(n: number, currency: string) {
 
 const PERIOD_COLORS: Record<string, string> = {
   Today: "border-t-[#00fff9]",
-  "This Week": "border-t-[#7c6aff]",
+  "Last 7 Days": "border-t-[#7c6aff]",
   "This Month": "border-t-[#ff6a9b]",
   "Last 30 Days": "border-t-[#ffaa4d]",
 };

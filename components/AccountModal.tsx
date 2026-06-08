@@ -15,7 +15,7 @@ interface AccountModalProps {
 
 const PERIODS = [
   { key: "today" as const,     label: "Today",       color: "#00fff9" },
-  { key: "thisWeek" as const,  label: "This Week",   color: "#7c6aff" },
+  { key: "thisWeek" as const,  label: "Last 7 Days", color: "#7c6aff" },
   { key: "thisMonth" as const, label: "This Month",  color: "#ff6a9b" },
   { key: "last30Days" as const,label: "Last 30 Days",color: "#ffaa4d" },
 ];

@@ -7,25 +7,24 @@ import { clsx } from "clsx";
 
 interface AccountCardProps {
   account: Account;
+  /** Called when user clicks the Active badge to deactivate this account */
+  onToggleActive?: () => void;
 }
 
 const PERIODS = [
   { key: "today" as const,      label: "Today" },
-  { key: "thisWeek" as const,   label: "This Week" },
+  { key: "thisWeek" as const,   label: "Last 7 Days" },
   { key: "thisMonth" as const,  label: "This Month" },
   { key: "last30Days" as const, label: "Last 30 Days" },
 ] as const;
 
-export default function AccountCard({ account }: AccountCardProps) {
+export default function AccountCard({ account, onToggleActive }: AccountCardProps) {
   const router = useRouter();
 
   return (
     <div
       id={`account-${account.id}`}
-      className={clsx(
-        "rounded-xl border bg-[#111118] p-4 flex flex-col gap-3 scroll-mt-20",
-        account.isActive ? "border-[#1e1e2e]" : "border-[#161620] opacity-60"
-      )}
+      className="rounded-xl border border-[#1e1e2e] bg-[#111118] p-4 flex flex-col gap-3 scroll-mt-20"
     >
       <div className="flex items-start justify-between">
         <button
@@ -46,14 +45,19 @@ export default function AccountCard({ account }: AccountCardProps) {
           </div>
         </button>
 
-        <span className={clsx(
-          "rounded-full border px-2 py-0.5 text-[10px] font-medium shrink-0",
-          account.isActive
-            ? "bg-[#00fff910] border-[#00fff930] text-[#00fff9]"
-            : "bg-[#3a3a5010] border-[#3a3a5030] text-[#3a3a50]"
-        )}>
-          {account.isActive ? "Active" : "Inactive"}
-        </span>
+        {/* Toggle button — shows "Active" normally, "Set Inactive" on hover */}
+        <button
+          onClick={(e) => { e.stopPropagation(); onToggleActive?.(); }}
+          title="Click to move to inactive"
+          className={clsx(
+            "group/toggle rounded-full border px-2.5 py-0.5 text-[10px] font-medium shrink-0 transition-all duration-150",
+            "bg-[#00fff910] border-[#00fff930] text-[#00fff9]",
+            "hover:bg-red-500/10 hover:border-red-500/30 hover:text-red-400"
+          )}
+        >
+          <span className="group-hover/toggle:hidden">Active</span>
+          <span className="hidden group-hover/toggle:inline whitespace-nowrap">Set Inactive</span>
+        </button>
       </div>
 
       <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">

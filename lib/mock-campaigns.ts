@@ -46,6 +46,7 @@ export function generateMockCampaigns(): CampaignData[] {
     const adGroups = AD_GROUP_NAMES[i].map((agName, j) => ({
       id: `ag-${i}-${j}`,
       name: agName,
+      status: "ENABLED",
       ...mockRow(campScale * rand(0.3, 0.8)),
     }));
     return {

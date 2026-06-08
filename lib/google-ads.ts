@@ -1,6 +1,38 @@
 import { GoogleAdsApi } from "google-ads-api";
 import { Account, CampaignData, AdGroupData, DailyConversion } from "./types";
 
+// ── Suggestion data types ─────────────────────────────────────────
+export interface KeywordRow {
+  text: string;
+  qualityScore: number | null;
+  clicks: number;
+  impressions: number;
+  conversions: number;
+  spend: number;
+  campaignName: string;
+  adGroupName: string;
+}
+export interface SearchTermRow {
+  term: string;
+  statusCode: number; // 2=ADDED 3=EXCLUDED 4=ADDED_EXCLUDED 5=NONE
+  clicks: number;
+  impressions: number;
+  conversions: number;
+  spend: number;
+}
+export interface AdGroupAdCount {
+  adGroupId: string;
+  adGroupName: string;
+  campaignName: string;
+  adCount: number;
+}
+export interface SuggestionsRawData {
+  keywords: KeywordRow[];
+  searchTerms: SearchTermRow[];
+  adGroupAdCounts: AdGroupAdCount[];
+  campaigns: Array<{ name: string; spend: number; conversions: number; roas: number | null }>;
+}
+
 let _client: GoogleAdsApi | null = null;
 
 function getClient(): GoogleAdsApi {
@@ -65,7 +97,7 @@ async function fetchAccountData(customerId: string) {
 
   const [today, thisWeek, thisMonth, last30Days, spend90, trendRows] = await Promise.all([
     customer.query(`SELECT ${METRICS_FIELDS} FROM customer WHERE segments.date DURING TODAY`),
-    customer.query(`SELECT ${METRICS_FIELDS} FROM customer WHERE segments.date DURING THIS_WEEK_SUN_TODAY`),
+    customer.query(`SELECT ${METRICS_FIELDS} FROM customer WHERE segments.date DURING LAST_7_DAYS`),
     customer.query(`SELECT ${METRICS_FIELDS} FROM customer WHERE segments.date DURING THIS_MONTH`),
     customer.query(`SELECT ${METRICS_FIELDS} FROM customer WHERE segments.date DURING LAST_30_DAYS`),
     customer.query(`SELECT metrics.cost_micros FROM customer WHERE segments.date >= '${d90Str}' AND segments.date <= '${todayStr}'`),
@@ -231,7 +263,8 @@ function parseCampaignMetrics(row: any) {
 }
 
 // Google Ads API returns status as a numeric enum — map to readable strings
-const CAMPAIGN_STATUS: Record<number, string> = { 2: "ENABLED", 3: "PAUSED", 4: "REMOVED" };
+const CAMPAIGN_STATUS:  Record<number, string> = { 2: "ENABLED", 3: "PAUSED", 4: "REMOVED" };
+const AD_GROUP_STATUS:  Record<number, string> = { 2: "ENABLED", 3: "PAUSED", 4: "REMOVED" };
 
 export async function fetchCampaigns(customerId: string, period: string): Promise<CampaignData[]> {
   const customer = getCustomer(customerId);
@@ -242,7 +275,7 @@ export async function fetchCampaigns(customerId: string, period: string): Promis
     metrics.conversions, metrics.conversions_value
   `;
   const AG_FIELDS = `
-    campaign.id, ad_group.id, ad_group.name,
+    campaign.id, ad_group.id, ad_group.name, ad_group.status,
     metrics.cost_micros, metrics.clicks, metrics.impressions,
     metrics.conversions, metrics.conversions_value
   `;
@@ -258,9 +291,12 @@ export async function fetchCampaigns(customerId: string, period: string): Promis
   for (const row of adGroupRows) {
     const cid = String(row.campaign!.id);
     if (!adGroupsByCampaign[cid]) adGroupsByCampaign[cid] = [];
+    const rawAgStatus = Number(row.ad_group!.status);
+    const agStatus = AD_GROUP_STATUS[rawAgStatus] ?? String(row.ad_group!.status ?? "UNKNOWN");
     adGroupsByCampaign[cid].push({
       id: String(row.ad_group!.id),
       name: row.ad_group!.name ?? "",
+      status: agStatus,
       ...parseCampaignMetrics(row),
     });
   }
@@ -277,4 +313,112 @@ export async function fetchCampaigns(customerId: string, period: string): Promis
       adGroups: adGroupsByCampaign[String(row.campaign!.id)] ?? [],
     };
   });
+}
+
+// ── Optimisation suggestions data ────────────────────────────────
+
+export async function fetchSuggestionsData(customerId: string): Promise<SuggestionsRawData> {
+  const customer = getCustomer(customerId);
+
+  // Run all queries in parallel; each is wrapped so one failure won't kill the rest
+  const [kwRows, stRows, adRows, campRows] = await Promise.all([
+    customer.query(`
+      SELECT
+        ad_group_criterion.keyword.text,
+        ad_group_criterion.quality_info.quality_score,
+        metrics.clicks, metrics.impressions, metrics.conversions, metrics.cost_micros,
+        campaign.name, ad_group.name
+      FROM keyword_view
+      WHERE segments.date DURING LAST_30_DAYS
+        AND ad_group_criterion.status != 'REMOVED'
+        AND campaign.status = 'ENABLED'
+        AND ad_group.status = 'ENABLED'
+      ORDER BY metrics.cost_micros DESC
+      LIMIT 300
+    `).catch(() => []),
+
+    customer.query(`
+      SELECT
+        search_term_view.search_term,
+        search_term_view.status,
+        metrics.clicks, metrics.impressions, metrics.conversions, metrics.cost_micros
+      FROM search_term_view
+      WHERE segments.date DURING LAST_30_DAYS
+      ORDER BY metrics.cost_micros DESC
+      LIMIT 300
+    `).catch(() => []),
+
+    // Ad count per ad group — no date filter (counts currently enabled ads)
+    customer.query(`
+      SELECT ad_group.id, ad_group.name, campaign.name, ad_group_ad.ad.id
+      FROM ad_group_ad
+      WHERE ad_group_ad.status = 'ENABLED'
+        AND campaign.status = 'ENABLED'
+        AND ad_group.status = 'ENABLED'
+      LIMIT 500
+    `).catch(() => []),
+
+    customer.query(`
+      SELECT campaign.name,
+        metrics.cost_micros, metrics.conversions, metrics.conversions_value
+      FROM campaign
+      WHERE segments.date DURING LAST_30_DAYS
+        AND campaign.status = 'ENABLED'
+      ORDER BY metrics.cost_micros DESC
+      LIMIT 100
+    `).catch(() => []),
+  ]);
+
+  const keywords: KeywordRow[] = kwRows.map((r: any) => {
+    const qs = Number(r?.ad_group_criterion?.quality_info?.quality_score ?? 0);
+    return {
+      text: r?.ad_group_criterion?.keyword?.text ?? "",
+      qualityScore: qs > 0 ? qs : null,
+      clicks: Number(r?.metrics?.clicks ?? 0),
+      impressions: Number(r?.metrics?.impressions ?? 0),
+      conversions: Number(r?.metrics?.conversions ?? 0),
+      spend: Number(r?.metrics?.cost_micros ?? 0) / 1_000_000,
+      campaignName: r?.campaign?.name ?? "",
+      adGroupName: r?.ad_group?.name ?? "",
+    };
+  });
+
+  const searchTerms: SearchTermRow[] = stRows.map((r: any) => ({
+    term: r?.search_term_view?.search_term ?? "",
+    statusCode: Number(r?.search_term_view?.status ?? 0),
+    clicks: Number(r?.metrics?.clicks ?? 0),
+    impressions: Number(r?.metrics?.impressions ?? 0),
+    conversions: Number(r?.metrics?.conversions ?? 0),
+    spend: Number(r?.metrics?.cost_micros ?? 0) / 1_000_000,
+  }));
+
+  // Count ads per ad group
+  const agMap: Record<string, AdGroupAdCount> = {};
+  for (const r of adRows as any[]) {
+    const agId = String(r?.ad_group?.id ?? "");
+    if (!agId) continue;
+    if (!agMap[agId]) {
+      agMap[agId] = {
+        adGroupId: agId,
+        adGroupName: r?.ad_group?.name ?? "",
+        campaignName: r?.campaign?.name ?? "",
+        adCount: 0,
+      };
+    }
+    agMap[agId].adCount++;
+  }
+
+  const campaigns = campRows.map((r: any) => {
+    const spend = Number(r?.metrics?.cost_micros ?? 0) / 1_000_000;
+    const conversions = Number(r?.metrics?.conversions ?? 0);
+    const conversionValue = Number(r?.metrics?.conversions_value ?? 0);
+    return {
+      name: r?.campaign?.name ?? "",
+      spend,
+      conversions,
+      roas: conversionValue > 0 && spend > 0 ? Math.round((conversionValue / spend) * 100) / 100 : null,
+    };
+  });
+
+  return { keywords, searchTerms, adGroupAdCounts: Object.values(agMap), campaigns };
 }

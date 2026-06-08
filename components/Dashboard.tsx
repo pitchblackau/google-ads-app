@@ -1,16 +1,47 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { DashboardData } from "@/lib/types";
+import { Account, DashboardData } from "@/lib/types";
 import AccountCard from "./AccountCard";
 import ConversionsTrend from "./ConversionsTrend";
 import Sidebar from "./Sidebar";
 import { format, parseISO } from "date-fns";
 
+const STORAGE_KEY = "account-active-overrides";
+
 export default function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  // Record<accountId, boolean> — manual overrides; if key absent, fall back to account.isActive
+  const [overrides, setOverrides] = useState<Record<string, boolean>>({});
+
+  // Hydrate from localStorage once on mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) setOverrides(JSON.parse(stored));
+    } catch {}
+  }, []);
+
+  // Persist every change
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(overrides));
+    } catch {}
+  }, [overrides]);
+
+  /** True if account is considered active (manual override wins over API value) */
+  const isEffectivelyActive = useCallback(
+    (account: Account) =>
+      account.id in overrides ? overrides[account.id] : account.isActive,
+    [overrides]
+  );
+
+  const toggleActive = useCallback((id: string, currentEffective: boolean) => {
+    setOverrides((prev) => ({ ...prev, [id]: !currentEffective }));
+  }, []);
 
   const fetchData = useCallback(async (manual = false) => {
     setLoading(true);
@@ -28,28 +59,49 @@ export default function Dashboard() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
+  // Only accounts the user has marked active
+  const activeAccounts = (data?.accounts ?? []).filter(isEffectivelyActive);
+
   return (
     <div className="flex min-h-screen bg-[#08080f] text-white">
-      <Sidebar accounts={data?.accounts ?? []} />
+      <Sidebar
+        accounts={data?.accounts ?? []}
+        activeOverrides={overrides}
+        onToggleActive={toggleActive}
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+      />
 
       <div className="flex-1 flex flex-col min-w-0">
         {/* Header */}
         <header className="sticky top-0 z-10 border-b border-[#1e1e2e] bg-[#08080f]/90 backdrop-blur-sm">
-          <div className="flex items-center justify-between px-6 py-4">
+          <div className="flex items-center justify-between px-4 md:px-6 py-3.5 md:py-4">
             <div className="flex items-center gap-3">
-              <div className="h-7 w-7 rounded-md bg-[#00fff9] flex items-center justify-center shrink-0">
+              {/* Hamburger — mobile only */}
+              <button
+                onClick={() => setSidebarOpen(true)}
+                className="md:hidden flex items-center justify-center h-8 w-8 rounded-lg border border-[#1e1e2e] bg-[#111118] text-[#8b8b9a] hover:text-white transition-colors"
+                aria-label="Open menu"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M3 12h18M3 6h18M3 18h18" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+
+              <div className="h-7 w-7 rounded-md bg-[#00fff9] hidden md:flex items-center justify-center shrink-0">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
                   <path d="M3 3h7v7H3V3zm11 0h7v7h-7V3zM3 14h7v7H3v-7zm11 0h7v7h-7v-7z" fill="#08080f"/>
                 </svg>
               </div>
               <div>
                 <h1 className="text-sm font-bold tracking-tight text-white">Google Ads Dashboard</h1>
-                <p className="text-[10px] text-[#4e4e63]">MCC Overview</p>
+                <p className="text-[10px] text-[#4e4e63] hidden sm:block">MCC Overview</p>
               </div>
             </div>
-            <div className="flex items-center gap-4">
+
+            <div className="flex items-center gap-2 md:gap-4">
               {data && (
-                <p className="text-[11px] text-[#4e4e63]">
+                <p className="text-[11px] text-[#4e4e63] hidden sm:block">
                   Updated {format(parseISO(data.lastUpdated), "h:mm a")}
                 </p>
               )}
@@ -62,14 +114,14 @@ export default function Dashboard() {
                   className={loading ? "animate-spin" : ""}>
                   <path d="M21 12a9 9 0 11-6.219-8.56" strokeLinecap="round"/>
                 </svg>
-                {loading ? "Loading…" : "Refresh"}
+                <span className="hidden sm:inline">{loading ? "Loading…" : "Refresh"}</span>
               </button>
             </div>
           </div>
         </header>
 
         {/* Body */}
-        <main className="px-6 py-6 flex flex-col gap-6">
+        <main className="px-4 md:px-6 py-4 md:py-6 flex flex-col gap-4 md:gap-6">
           {error && (
             <div className="rounded-lg border border-red-900/50 bg-red-950/30 px-4 py-3 text-sm text-red-400">{error}</div>
           )}
@@ -85,24 +137,35 @@ export default function Dashboard() {
 
           {data && (
             <>
-              <div className="flex flex-wrap gap-3">
-                <Chip label="Active Accounts"        value={String(data.accounts.filter(a => a.isActive).length)} />
-                <Chip label="Inactive Accounts"       value={String(data.accounts.filter(a => !a.isActive).length)} dim />
+              <div className="flex flex-wrap gap-2 md:gap-3">
+                <Chip label="Active Accounts"        value={String(activeAccounts.length)} />
+                <Chip label="Inactive Accounts"      value={String(data.accounts.length - activeAccounts.length)} dim />
                 <Chip label="Total Conversions Today"
-                  value={data.accounts.filter(a => a.isActive).reduce((s, a) => s + a.metrics.today.conversions, 0).toLocaleString()}
+                  value={activeAccounts.reduce((s, a) => s + a.metrics.today.conversions, 0).toLocaleString()}
                   accent />
                 <Chip label="Total Spend Today"
-                  value={`$${data.accounts.filter(a => a.isActive).reduce((s, a) => s + a.metrics.today.spend, 0)
+                  value={`$${activeAccounts.reduce((s, a) => s + a.metrics.today.spend, 0)
                     .toLocaleString(undefined, { maximumFractionDigits: 0 })}`} />
                 <Chip label="Total Clicks Today"
-                  value={data.accounts.filter(a => a.isActive).reduce((s, a) => s + a.metrics.today.clicks, 0).toLocaleString()} />
+                  value={activeAccounts.reduce((s, a) => s + a.metrics.today.clicks, 0).toLocaleString()} />
               </div>
 
-              <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-                {data.accounts.map((account) => (
-                  <AccountCard key={account.id} account={account} />
-                ))}
-              </div>
+              {activeAccounts.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-24 text-center gap-3">
+                  <p className="text-[#4e4e63] text-sm">All accounts are marked inactive.</p>
+                  <p className="text-[#3a3a50] text-[12px]">Use the sidebar to restore accounts.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-3 md:gap-4 xl:grid-cols-2">
+                  {activeAccounts.map((account) => (
+                    <AccountCard
+                      key={account.id}
+                      account={account}
+                      onToggleActive={() => toggleActive(account.id, true)}
+                    />
+                  ))}
+                </div>
+              )}
 
               <ConversionsTrend />
             </>
@@ -115,8 +178,8 @@ export default function Dashboard() {
 
 function Chip({ label, value, accent, dim }: { label: string; value: string; accent?: boolean; dim?: boolean }) {
   return (
-    <div className="rounded-lg border border-[#1e1e2e] bg-[#111118] px-4 py-2.5 flex items-center gap-3">
-      <p className="text-[11px] text-[#4e4e63]">{label}</p>
+    <div className="rounded-lg border border-[#1e1e2e] bg-[#111118] px-3 md:px-4 py-2 md:py-2.5 flex items-center gap-2 md:gap-3">
+      <p className="text-[10px] md:text-[11px] text-[#4e4e63]">{label}</p>
       <p className={`text-sm font-bold ${accent ? "text-[#00fff9]" : dim ? "text-[#3a3a50]" : "text-white"}`}>{value}</p>
     </div>
   );

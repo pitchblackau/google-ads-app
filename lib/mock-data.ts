@@ -1,4 +1,4 @@
-import { Account, DailyConversion } from "./types";
+import { Account, DailyConversion, Suggestion } from "./types";
 import { format, subDays } from "date-fns";
 
 function rand(min: number, max: number) {
@@ -55,6 +55,41 @@ export function generateMockTrend(days = 30): DailyConversion[] {
     }, 0);
     return { date, conversions };
   });
+}
+
+export function generateMockSuggestions(): Suggestion[] {
+  return [
+    {
+      id: "m1", type: "warning", category: "keywords", impact: "high",
+      title: "4 keywords with Quality Score ≤ 4",
+      description: 'Low QS means higher CPCs and lost impression share. Improve ad copy and landing pages for: "cheap insurance" (QS 3), "buy car online" (QS 4), "fast loans" (QS 3) and 1 more.',
+    },
+    {
+      id: "m2", type: "warning", category: "keywords", impact: "high",
+      title: "3 keywords spent $340 with zero conversions",
+      description: "These keywords are consuming budget without results. Consider pausing them, reducing bids, or fixing the landing page experience.",
+    },
+    {
+      id: "m3", type: "opportunity", category: "search_terms", impact: "high",
+      title: '7 search terms spent $210 with no conversions',
+      description: 'Terms like "free quote online", "compare prices" are burning budget. Add irrelevant ones as negative keywords to redirect spend toward converting queries.',
+    },
+    {
+      id: "m4", type: "opportunity", category: "search_terms", impact: "medium",
+      title: "2 high-converting search terms not yet added as keywords",
+      description: '"affordable dental" (4 conv.), "dentist near me" (3 conv.) are converting well but triggered broadly. Add as exact match keywords to control bids.',
+    },
+    {
+      id: "m5", type: "opportunity", category: "ads", impact: "medium",
+      title: "3 ad groups running only one active ad",
+      description: 'Without ad variations there is nothing to test. Add 2–3 Responsive Search Ads to "Brand Keywords", "Core Services" and 1 more.',
+    },
+    {
+      id: "m6", type: "opportunity", category: "campaigns", impact: "medium",
+      title: "1 campaign delivering strong ROAS — consider scaling budget",
+      description: '"Brand Keywords" is generating 6.2x ROAS. Increasing the budget on high-performing campaigns is the fastest way to grow conversions profitably.',
+    },
+  ];
 }
 
 export function generateMockAccountTrend(days = 30): DailyConversion[] {

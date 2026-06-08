@@ -37,6 +37,7 @@ export interface DashboardData {
 export interface AdGroupData {
   id: string;
   name: string;
+  status: string;
   clicks: number;
   impressions: number;
   ctr: number;
@@ -71,10 +72,19 @@ export const TREND_PERIOD_OPTIONS = [
 
 export type TrendPeriodValue = typeof TREND_PERIOD_OPTIONS[number]["value"];
 
+export interface Suggestion {
+  id: string;
+  type: "warning" | "opportunity" | "info";
+  category: "keywords" | "search_terms" | "ads" | "campaigns" | "general";
+  impact: "high" | "medium" | "low";
+  title: string;
+  description: string;
+}
+
 export const PERIOD_OPTIONS = [
   { label: "Last 30 Days",  value: "LAST_30_DAYS"       },
   { label: "This Month",    value: "THIS_MONTH"          },
-  { label: "This Week",     value: "THIS_WEEK_SUN_TODAY" },
+  { label: "Last 7 Days",   value: "LAST_7_DAYS" },
   { label: "Today",         value: "TODAY"               },
 ] as const;
 

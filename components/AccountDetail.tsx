@@ -6,12 +6,13 @@ import { Account, AdGroupData, CampaignData, PERIOD_OPTIONS, PeriodValue } from 
 import MetricBox from "./MetricBox";
 import CampaignTable from "./CampaignTable";
 import ConversionsTrend from "./ConversionsTrend";
+import OptimisationSuggestions from "./OptimisationSuggestions";
 import { clsx } from "clsx";
 
 const PERIODS = ["today", "thisWeek", "thisMonth", "last30Days"] as const;
 const PERIOD_LABELS = {
   today: "Today",
-  thisWeek: "This Week",
+  thisWeek: "Last 7 Days",
   thisMonth: "This Month",
   last30Days: "Last 30 Days",
 };
@@ -93,7 +94,11 @@ export default function AccountDetail({ accountId }: AccountDetailProps) {
 
   const allAdGroups: FlatAdGroup[] = adGroupCampaigns
     .filter((c) => c.status === "ENABLED" || Number(c.status) === 2)
-    .flatMap((c) => c.adGroups.map((ag) => ({ ...ag, campaignName: c.name })))
+    .flatMap((c) =>
+      c.adGroups
+        .filter((ag) => ag.status === "ENABLED" || Number(ag.status) === 2)
+        .map((ag) => ({ ...ag, campaignName: c.name }))
+    )
     .sort((a, b) => b.spend - a.spend);
 
   const hasRoas = allAdGroups.some((ag) => ag.roas !== null);
@@ -104,24 +109,24 @@ export default function AccountDetail({ accountId }: AccountDetailProps) {
     <div className="min-h-screen bg-[#08080f] text-white">
       {/* Header */}
       <header className="sticky top-0 z-10 border-b border-[#1e1e2e] bg-[#08080f]/90 backdrop-blur-sm">
-        <div className="mx-auto max-w-[1400px] flex items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-4">
+        <div className="mx-auto max-w-[1400px] flex items-center justify-between px-4 md:px-6 py-3.5 md:py-4">
+          <div className="flex items-center gap-3 min-w-0">
             <button
               onClick={() => router.push("/")}
-              className="flex items-center gap-1.5 text-[#4e4e63] hover:text-white transition-colors text-[12px]"
+              className="flex items-center gap-1.5 text-[#4e4e63] hover:text-white transition-colors text-[12px] shrink-0"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <path d="M19 12H5M12 5l-7 7 7 7" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
-              All Accounts
+              <span className="hidden sm:inline">All Accounts</span>
             </button>
-            <span className="text-[#1e1e2e]">|</span>
+            <span className="text-[#1e1e2e] hidden sm:inline">|</span>
             {accountLoading ? (
-              <div className="h-4 w-48 animate-pulse rounded bg-[#1e1e2e]" />
+              <div className="h-4 w-32 sm:w-48 animate-pulse rounded bg-[#1e1e2e]" />
             ) : (
-              <div>
-                <h1 className="text-sm font-bold text-white">{account?.name}</h1>
-                <p className="text-[10px] text-[#4e4e63]">
+              <div className="min-w-0">
+                <h1 className="text-sm font-bold text-white truncate">{account?.name}</h1>
+                <p className="text-[10px] text-[#4e4e63] hidden sm:block">
                   ID: {accountId.replace(/(\d{3})(\d{3})(\d{4})/, "$1-$2-$3")} · {account?.currency}
                 </p>
               </div>
@@ -139,7 +144,7 @@ export default function AccountDetail({ accountId }: AccountDetailProps) {
         </div>
       </header>
 
-      <main className="mx-auto max-w-[1400px] px-6 py-6 flex flex-col gap-6">
+      <main className="mx-auto max-w-[1400px] px-4 md:px-6 py-4 md:py-6 flex flex-col gap-4 md:gap-6">
         {error && (
           <div className="rounded-lg border border-red-900/50 bg-red-950/30 px-4 py-3 text-sm text-red-400">
             {error}
@@ -148,9 +153,9 @@ export default function AccountDetail({ accountId }: AccountDetailProps) {
 
         {/* 4 period metric boxes */}
         {accountLoading ? (
-          <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 md:gap-3 xl:grid-cols-4">
             {[0, 1, 2, 3].map((i) => (
-              <div key={i} className="h-40 animate-pulse rounded-lg bg-[#111118] border border-[#1e1e2e]" />
+              <div key={i} className="h-36 md:h-40 animate-pulse rounded-lg bg-[#111118] border border-[#1e1e2e]" />
             ))}
           </div>
         ) : account && (
@@ -282,7 +287,10 @@ export default function AccountDetail({ accountId }: AccountDetailProps) {
         </div>
 
         {/* Conversions Trend — self-fetching, account-specific, with period selector */}
-        <ConversionsTrend accountId={accountId} title="Conversions Trend" />
+        <ConversionsTrend accountId={accountId} />
+
+        {/* Optimisation Suggestions */}
+        <OptimisationSuggestions accountId={accountId} />
       </main>
     </div>
   );
