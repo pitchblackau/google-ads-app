@@ -94,6 +94,7 @@ async function fetchAccountData(customerId: string) {
   const d90 = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
   const d90Str = d90.toISOString().slice(0, 10);
   const todayStr = now.toISOString().slice(0, 10);
+  const yearStartStr = `${now.getFullYear()}-01-01`;
 
   const [today, thisWeek, thisMonth, last30Days, spend90, trendRows, last3Months, thisYear] = await Promise.all([
     customer.query(`SELECT ${METRICS_FIELDS} FROM customer WHERE segments.date DURING TODAY`),
@@ -102,8 +103,8 @@ async function fetchAccountData(customerId: string) {
     customer.query(`SELECT ${METRICS_FIELDS} FROM customer WHERE segments.date DURING LAST_30_DAYS`),
     customer.query(`SELECT metrics.cost_micros FROM customer WHERE segments.date >= '${d90Str}' AND segments.date <= '${todayStr}'`),
     customer.query(`SELECT segments.date, metrics.conversions FROM customer WHERE segments.date DURING LAST_30_DAYS ORDER BY segments.date ASC`),
-    customer.query(`SELECT ${METRICS_FIELDS} FROM customer WHERE segments.date DURING LAST_90_DAYS`),
-    customer.query(`SELECT ${METRICS_FIELDS} FROM customer WHERE segments.date DURING THIS_YEAR`),
+    customer.query(`SELECT ${METRICS_FIELDS} FROM customer WHERE segments.date >= '${d90Str}' AND segments.date <= '${todayStr}'`),
+    customer.query(`SELECT ${METRICS_FIELDS} FROM customer WHERE segments.date >= '${yearStartStr}' AND segments.date <= '${todayStr}'`),
   ]);
 
   const totalSpend90 = spend90.reduce((sum: number, r: any) => sum + Number(r?.metrics?.cost_micros ?? 0), 0);
