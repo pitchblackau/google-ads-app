@@ -88,14 +88,14 @@ export default function AccountCard({
         {/* Account name — navigates to account detail on click */}
         <button
           onClick={() => router.push(`/account/${account.id}`)}
-          className="group/name flex-1 text-left min-w-0"
+          className="group/name flex-1 text-left min-w-0 cursor-pointer"
         >
-          <h2 className="text-sm font-semibold text-white group-hover/name:text-[#00fff9] transition-colors leading-tight flex items-center gap-1.5">
+          <h2 className="text-sm font-semibold text-[#00fff9] group-hover/name:underline leading-tight flex items-center gap-1.5">
             {account.name}
             <svg
               width="11" height="11" viewBox="0 0 24 24" fill="none"
               stroke="currentColor" strokeWidth="2.5"
-              className="shrink-0 opacity-0 group-hover/name:opacity-100 transition-opacity text-[#00fff9]"
+              className="shrink-0 opacity-50 group-hover/name:opacity-100 transition-opacity"
             >
               <path d="M15 3h6v6M10 14L21 3M21 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h6" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
