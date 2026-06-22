@@ -1,12 +1,21 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Account, DashboardData, TimePeriodMetrics } from "@/lib/types";
 import AccountCard from "./AccountCard";
 import ConversionsTrend from "./ConversionsTrend";
 import Sidebar from "./Sidebar";
 import { format, parseISO } from "date-fns";
 import { clsx } from "clsx";
+import {
+  DndContext,
+  DragEndEvent,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import { SortableContext, arrayMove, rectSortingStrategy } from "@dnd-kit/sortable";
 
 type ChipPeriodKey = keyof Pick<TimePeriodMetrics,
   "today" | "thisWeek" | "thisMonth" | "last3Months" | "thisYear">;
@@ -20,6 +29,7 @@ const CHIP_PERIODS: Array<{ key: ChipPeriodKey; label: string }> = [
 ];
 
 const STORAGE_KEY = "account-active-overrides";
+const ORDER_KEY   = "account-order";
 
 export default function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
@@ -27,8 +37,12 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [chipPeriod, setChipPeriod]   = useState<ChipPeriodKey>("today");
-  // Record<accountId, boolean> — manual overrides; if key absent, fall back to account.isActive
-  const [overrides, setOverrides] = useState<Record<string, boolean>>({});
+  const [overrides, setOverrides]     = useState<Record<string, boolean>>({});
+  const [accountOrder, setAccountOrder] = useState<string[]>([]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+  );
 
   // Hydrate from localStorage once on mount
   useEffect(() => {
@@ -36,14 +50,22 @@ export default function Dashboard() {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) setOverrides(JSON.parse(stored));
     } catch {}
+    try {
+      const order = localStorage.getItem(ORDER_KEY);
+      if (order) setAccountOrder(JSON.parse(order));
+    } catch {}
   }, []);
 
-  // Persist every change
+  // Persist overrides
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(overrides));
-    } catch {}
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(overrides)); } catch {}
   }, [overrides]);
+
+  // Persist order
+  useEffect(() => {
+    if (accountOrder.length === 0) return;
+    try { localStorage.setItem(ORDER_KEY, JSON.stringify(accountOrder)); } catch {}
+  }, [accountOrder]);
 
   /** True if account is considered active (manual override wins over API value) */
   const isEffectivelyActive = useCallback(
@@ -74,6 +96,28 @@ export default function Dashboard() {
 
   // Only accounts the user has marked active
   const activeAccounts = (data?.accounts ?? []).filter(isEffectivelyActive);
+
+  // Apply saved drag-drop order
+  const orderedActiveAccounts = useMemo(() => {
+    if (accountOrder.length === 0) return activeAccounts;
+    return [...activeAccounts].sort((a, b) => {
+      const ai = accountOrder.indexOf(a.id);
+      const bi = accountOrder.indexOf(b.id);
+      if (ai === -1 && bi === -1) return 0;
+      if (ai === -1) return 1;
+      if (bi === -1) return -1;
+      return ai - bi;
+    });
+  }, [activeAccounts, accountOrder]);
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const ids = orderedActiveAccounts.map((a) => a.id);
+    const oldIdx = ids.indexOf(active.id as string);
+    const newIdx = ids.indexOf(over.id as string);
+    setAccountOrder(arrayMove(ids, oldIdx, newIdx));
+  }
 
   return (
     <div className="flex min-h-screen bg-[#08080f] text-white">
@@ -201,15 +245,26 @@ export default function Dashboard() {
                   <p className="text-[#3a3a50] text-[12px]">Use the sidebar to restore accounts.</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 gap-3 md:gap-4 xl:grid-cols-2">
-                  {activeAccounts.map((account) => (
-                    <AccountCard
-                      key={account.id}
-                      account={account}
-                      onToggleActive={() => toggleActive(account.id, true)}
-                    />
-                  ))}
-                </div>
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleDragEnd}
+                >
+                  <SortableContext
+                    items={orderedActiveAccounts.map((a) => a.id)}
+                    strategy={rectSortingStrategy}
+                  >
+                    <div className="grid grid-cols-1 gap-3 md:gap-4 xl:grid-cols-2">
+                      {orderedActiveAccounts.map((account) => (
+                        <AccountCard
+                          key={account.id}
+                          account={account}
+                          onToggleActive={() => toggleActive(account.id, true)}
+                        />
+                      ))}
+                    </div>
+                  </SortableContext>
+                </DndContext>
               )}
 
               <ConversionsTrend />
