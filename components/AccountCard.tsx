@@ -1,8 +1,7 @@
 "use client";
 
+import { useRef } from "react";
 import { useRouter } from "next/navigation";
-import { useSortable } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
 import { Account } from "@/lib/types";
 import MetricBox from "./MetricBox";
 import { clsx } from "clsx";
@@ -10,6 +9,12 @@ import { clsx } from "clsx";
 interface AccountCardProps {
   account: Account;
   onToggleActive?: () => void;
+  isDragging?: boolean;
+  isDragOver?: boolean;
+  onDragStart?: () => void;
+  onDragOver?: () => void;
+  onDrop?: () => void;
+  onDragEnd?: () => void;
 }
 
 const PERIODS = [
@@ -19,41 +24,56 @@ const PERIODS = [
   { key: "last30Days" as const, label: "Last 30 Days" },
 ] as const;
 
-export default function AccountCard({ account, onToggleActive }: AccountCardProps) {
+export default function AccountCard({
+  account,
+  onToggleActive,
+  isDragging,
+  isDragOver,
+  onDragStart,
+  onDragOver: onDragOverProp,
+  onDrop,
+  onDragEnd,
+}: AccountCardProps) {
   const router = useRouter();
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: account.id });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.45 : 1,
-    zIndex: isDragging ? 10 : undefined,
-  };
+  const cardRef = useRef<HTMLDivElement>(null);
 
   return (
     <div
-      ref={setNodeRef}
-      style={style}
+      ref={cardRef}
       id={`account-${account.id}`}
       className={clsx(
-        "rounded-xl border border-[#1e1e2e] bg-[#111118] p-4 flex flex-col gap-3 scroll-mt-20 group/card",
-        isDragging && "shadow-2xl shadow-black/60"
+        "rounded-xl border bg-[#111118] p-4 flex flex-col gap-3 scroll-mt-20 group/card transition-all duration-150",
+        isDragging  ? "opacity-40 border-[#1e1e2e]" : "border-[#1e1e2e]",
+        isDragOver  && "border-[#00fff9]/40 shadow-lg shadow-[#00fff9]/5"
       )}
+      onDragOver={(e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+        onDragOverProp?.();
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        onDrop?.();
+      }}
+      onDragEnd={onDragEnd}
     >
       <div className="flex items-start gap-2">
-        {/* Drag handle — visible on card hover */}
-        <button
-          {...listeners}
-          {...attributes}
+
+        {/* Drag handle — always visible, brightens on hover */}
+        <div
+          draggable
+          onDragStart={(e) => {
+            e.stopPropagation();
+            e.dataTransfer.effectAllowed = "move";
+            e.dataTransfer.setData("text/plain", account.id);
+            if (cardRef.current) {
+              e.dataTransfer.setDragImage(cardRef.current, 20, 20);
+            }
+            onDragStart?.();
+          }}
+          role="button"
           aria-label="Drag to reorder"
-          className="shrink-0 mt-1 p-1 rounded cursor-grab active:cursor-grabbing opacity-0 group-hover/card:opacity-100 transition-opacity text-[#3a3a50] hover:text-[#6b6b7e] focus:outline-none"
+          className="shrink-0 mt-0.5 p-1.5 rounded cursor-grab active:cursor-grabbing text-[#2e2e42] hover:text-[#6b6b7e] group-hover/card:text-[#3a3a50] transition-colors select-none"
         >
           <svg width="12" height="14" viewBox="0 0 12 14" fill="currentColor">
             <circle cx="3.5" cy="2"  r="1.5"/>
@@ -63,9 +83,9 @@ export default function AccountCard({ account, onToggleActive }: AccountCardProp
             <circle cx="3.5" cy="12" r="1.5"/>
             <circle cx="8.5" cy="12" r="1.5"/>
           </svg>
-        </button>
+        </div>
 
-        {/* Account name — navigates to account detail */}
+        {/* Account name — navigates to account detail on click */}
         <button
           onClick={() => router.push(`/account/${account.id}`)}
           className="group/name flex-1 text-left min-w-0"

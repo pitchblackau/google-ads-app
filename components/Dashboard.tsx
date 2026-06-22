@@ -7,15 +7,6 @@ import ConversionsTrend from "./ConversionsTrend";
 import Sidebar from "./Sidebar";
 import { format, parseISO } from "date-fns";
 import { clsx } from "clsx";
-import {
-  DndContext,
-  DragEndEvent,
-  PointerSensor,
-  closestCenter,
-  useSensor,
-  useSensors,
-} from "@dnd-kit/core";
-import { SortableContext, arrayMove, rectSortingStrategy } from "@dnd-kit/sortable";
 
 type ChipPeriodKey = keyof Pick<TimePeriodMetrics,
   "today" | "thisWeek" | "thisMonth" | "last3Months" | "thisYear">;
@@ -37,12 +28,10 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [chipPeriod, setChipPeriod]   = useState<ChipPeriodKey>("today");
-  const [overrides, setOverrides]     = useState<Record<string, boolean>>({});
+  const [overrides, setOverrides]       = useState<Record<string, boolean>>({});
   const [accountOrder, setAccountOrder] = useState<string[]>([]);
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
-  );
+  const [draggingId, setDraggingId]     = useState<string | null>(null);
+  const [dragOverId, setDragOverId]     = useState<string | null>(null);
 
   // Hydrate from localStorage once on mount
   useEffect(() => {
@@ -110,13 +99,30 @@ export default function Dashboard() {
     });
   }, [activeAccounts, accountOrder]);
 
-  function handleDragEnd(event: DragEndEvent) {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
+  function handleDragStart(id: string) {
+    setDraggingId(id);
+  }
+
+  function handleDragOver(id: string) {
+    if (id !== draggingId) setDragOverId(id);
+  }
+
+  function handleDrop(targetId: string) {
+    if (!draggingId || draggingId === targetId) return;
     const ids = orderedActiveAccounts.map((a) => a.id);
-    const oldIdx = ids.indexOf(active.id as string);
-    const newIdx = ids.indexOf(over.id as string);
-    setAccountOrder(arrayMove(ids, oldIdx, newIdx));
+    const fromIdx = ids.indexOf(draggingId);
+    const toIdx   = ids.indexOf(targetId);
+    const next = [...ids];
+    next.splice(fromIdx, 1);
+    next.splice(toIdx, 0, draggingId);
+    setAccountOrder(next);
+    setDraggingId(null);
+    setDragOverId(null);
+  }
+
+  function handleDragEnd() {
+    setDraggingId(null);
+    setDragOverId(null);
   }
 
   return (
@@ -245,26 +251,21 @@ export default function Dashboard() {
                   <p className="text-[#3a3a50] text-[12px]">Use the sidebar to restore accounts.</p>
                 </div>
               ) : (
-                <DndContext
-                  sensors={sensors}
-                  collisionDetection={closestCenter}
-                  onDragEnd={handleDragEnd}
-                >
-                  <SortableContext
-                    items={orderedActiveAccounts.map((a) => a.id)}
-                    strategy={rectSortingStrategy}
-                  >
-                    <div className="grid grid-cols-1 gap-3 md:gap-4 xl:grid-cols-2">
-                      {orderedActiveAccounts.map((account) => (
-                        <AccountCard
-                          key={account.id}
-                          account={account}
-                          onToggleActive={() => toggleActive(account.id, true)}
-                        />
-                      ))}
-                    </div>
-                  </SortableContext>
-                </DndContext>
+                <div className="grid grid-cols-1 gap-3 md:gap-4 xl:grid-cols-2">
+                  {orderedActiveAccounts.map((account) => (
+                    <AccountCard
+                      key={account.id}
+                      account={account}
+                      onToggleActive={() => toggleActive(account.id, true)}
+                      isDragging={draggingId === account.id}
+                      isDragOver={dragOverId === account.id}
+                      onDragStart={() => handleDragStart(account.id)}
+                      onDragOver={() => handleDragOver(account.id)}
+                      onDrop={() => handleDrop(account.id)}
+                      onDragEnd={handleDragEnd}
+                    />
+                  ))}
+                </div>
               )}
 
               <ConversionsTrend />
