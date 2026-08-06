@@ -435,35 +435,55 @@ function pctChange(curr: number, prev: number): number | null {
   return Math.round(((curr - prev) / prev) * 1000) / 10;
 }
 
-export async function fetchAccountReport(customerId: string): Promise<AccountReport> {
-  const customer = getCustomer(customerId);
+function iso(d: Date) { return d.toISOString().slice(0, 10); }
+
+function getReportDateRanges(period: string): {
+  currentStart: string; currentEnd: string; prevStart: string; prevEnd: string;
+} {
   const now = new Date();
-  const todayStr = now.toISOString().slice(0, 10);
-  const d30Start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-  const d30Str = d30Start.toISOString().slice(0, 10);
-  const d60Start = new Date(now.getTime() - 61 * 24 * 60 * 60 * 1000);
-  const d60Str = d60Start.toISOString().slice(0, 10);
-  const d31Str = new Date(now.getTime() - 31 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const today = iso(now);
+  const days = (n: number) => iso(new Date(now.getTime() - n * 86_400_000));
+
+  if (period === "LAST_7_DAYS")  return { currentStart: days(7),  currentEnd: today, prevStart: days(14), prevEnd: days(8)  };
+  if (period === "LAST_14_DAYS") return { currentStart: days(14), currentEnd: today, prevStart: days(28), prevEnd: days(15) };
+  if (period === "LAST_MONTH") {
+    const firstThisMonth  = new Date(now.getFullYear(), now.getMonth(), 1);
+    const lastLastMonth   = new Date(firstThisMonth.getTime() - 86_400_000);
+    const firstLastMonth  = new Date(lastLastMonth.getFullYear(), lastLastMonth.getMonth(), 1);
+    const lastMonthBefore = new Date(firstLastMonth.getTime() - 86_400_000);
+    const firstMonthBefore = new Date(lastMonthBefore.getFullYear(), lastMonthBefore.getMonth(), 1);
+    return {
+      currentStart: iso(firstLastMonth),  currentEnd: iso(lastLastMonth),
+      prevStart:    iso(firstMonthBefore), prevEnd:    iso(lastMonthBefore),
+    };
+  }
+  // Default: LAST_30_DAYS
+  return { currentStart: days(30), currentEnd: today, prevStart: days(61), prevEnd: days(31) };
+}
+
+export async function fetchAccountReport(customerId: string, period = "LAST_30_DAYS"): Promise<AccountReport> {
+  const customer = getCustomer(customerId);
+  const { currentStart, currentEnd, prevStart, prevEnd } = getReportDateRanges(period);
 
   const [dailyRows, prevRows, campaignRows, deviceRows] = await Promise.all([
     customer.query(`
       SELECT segments.date, metrics.clicks, metrics.impressions,
              metrics.conversions, metrics.cost_micros, metrics.conversions_value
       FROM customer
-      WHERE segments.date >= '${d30Str}' AND segments.date <= '${todayStr}'
+      WHERE segments.date >= '${currentStart}' AND segments.date <= '${currentEnd}'
       ORDER BY segments.date ASC
     `),
     customer.query(`
       SELECT metrics.clicks, metrics.impressions, metrics.conversions,
              metrics.cost_micros, metrics.conversions_value
       FROM customer
-      WHERE segments.date >= '${d60Str}' AND segments.date <= '${d31Str}'
+      WHERE segments.date >= '${prevStart}' AND segments.date <= '${prevEnd}'
     `),
     customer.query(`
       SELECT campaign.name, metrics.clicks, metrics.impressions,
              metrics.conversions, metrics.cost_micros, metrics.conversions_value
       FROM campaign
-      WHERE segments.date >= '${d30Str}' AND segments.date <= '${todayStr}'
+      WHERE segments.date >= '${currentStart}' AND segments.date <= '${currentEnd}'
         AND campaign.status != 'REMOVED'
       ORDER BY metrics.cost_micros DESC
       LIMIT 500
@@ -471,7 +491,7 @@ export async function fetchAccountReport(customerId: string): Promise<AccountRep
     customer.query(`
       SELECT segments.device, metrics.clicks, metrics.conversions, metrics.cost_micros
       FROM campaign
-      WHERE segments.date >= '${d30Str}' AND segments.date <= '${todayStr}'
+      WHERE segments.date >= '${currentStart}' AND segments.date <= '${currentEnd}'
         AND campaign.status != 'REMOVED'
     `),
   ]);
@@ -571,8 +591,8 @@ export async function fetchAccountReport(customerId: string): Promise<AccountRep
     .sort((a, b) => b.clicks - a.clicks);
 
   return {
-    periodStart: d30Str,
-    periodEnd:   todayStr,
+    periodStart: currentStart,
+    periodEnd:   currentEnd,
     metrics: {
       clicks:      totalClicks,
       ctr:         Math.round(ctr * 100) / 100,
