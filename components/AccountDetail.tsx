@@ -7,6 +7,7 @@ import MetricBox from "./MetricBox";
 import CampaignTable from "./CampaignTable";
 import ConversionsTrend from "./ConversionsTrend";
 import OptimisationSuggestions from "./OptimisationSuggestions";
+import ReportingPanel from "./ReportingPanel";
 import { clsx } from "clsx";
 
 const PERIODS = ["today", "thisWeek", "thisMonth", "last30Days"] as const;
@@ -38,6 +39,7 @@ interface FlatAdGroup extends AdGroupData {
 
 export default function AccountDetail({ accountId }: AccountDetailProps) {
   const router = useRouter();
+  const [tab, setTab] = useState<"overview" | "reporting">("overview");
 
   // Account header state
   const [account, setAccount] = useState<Account | null>(null);
@@ -132,15 +134,39 @@ export default function AccountDetail({ accountId }: AccountDetailProps) {
               </div>
             )}
           </div>
-          {account && (
-            <span className={`rounded-full border px-2.5 py-0.5 text-[10px] font-semibold ${
-              account.isActive
-                ? "border-[#00fff930] bg-[#00fff910] text-[#00fff9]"
-                : "border-[#3a3a5030] bg-[#3a3a5010] text-[#3a3a50]"
-            }`}>
-              {account.isActive ? "Active" : "Inactive"}
-            </span>
-          )}
+          <div className="flex items-center gap-3">
+            {/* Tab switcher */}
+            <div className="flex items-center gap-0.5 rounded-lg bg-[#0d0d14] p-0.5">
+              <button
+                onClick={() => setTab("overview")}
+                className={clsx(
+                  "px-4 py-1.5 text-xs font-semibold rounded-md transition-all duration-150",
+                  tab === "overview" ? "bg-[#1e1e2e] text-white shadow" : "text-[#6b7280] hover:text-[#a0a8c0]"
+                )}
+              >
+                Overview
+              </button>
+              <button
+                onClick={() => setTab("reporting")}
+                className={clsx(
+                  "px-4 py-1.5 text-xs font-semibold rounded-md transition-all duration-150",
+                  tab === "reporting" ? "bg-[#1e1e2e] text-white shadow" : "text-[#6b7280] hover:text-[#a0a8c0]"
+                )}
+              >
+                Reporting
+              </button>
+            </div>
+
+            {account && (
+              <span className={`rounded-full border px-2.5 py-0.5 text-[10px] font-semibold ${
+                account.isActive
+                  ? "border-[#00fff930] bg-[#00fff910] text-[#00fff9]"
+                  : "border-[#3a3a5030] bg-[#3a3a5010] text-[#3a3a50]"
+              }`}>
+                {account.isActive ? "Active" : "Inactive"}
+              </span>
+            )}
+          </div>
         </div>
       </header>
 
@@ -150,6 +176,18 @@ export default function AccountDetail({ accountId }: AccountDetailProps) {
             {error}
           </div>
         )}
+
+        {/* Reporting tab */}
+        {tab === "reporting" && (
+          <ReportingPanel
+            accountId={accountId}
+            accountName={account?.name ?? ""}
+            currency={account?.currency ?? "AUD"}
+          />
+        )}
+
+        {/* Overview tab — hidden (not unmounted) when reporting is active so data stays cached */}
+        <div className={tab === "overview" ? "contents" : "hidden"}>
 
         {/* 4 period metric boxes */}
         {accountLoading ? (
@@ -291,6 +329,8 @@ export default function AccountDetail({ accountId }: AccountDetailProps) {
 
         {/* Optimisation Suggestions */}
         <OptimisationSuggestions accountId={accountId} />
+
+        </div>{/* end overview */}
       </main>
     </div>
   );
