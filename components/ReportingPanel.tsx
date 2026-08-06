@@ -494,7 +494,8 @@ export default function ReportingPanel({ accountId, accountName, currency }: Pro
                 contentStyle={{ background: "#0d1120", border: "1px solid #1e2a44", borderRadius: 6, fontSize: 11 }}
                 labelStyle={{ color: "#9aa0b4" }}
                 itemStyle={{ color: "#00fff9" }}
-                formatter={(v: number) => [v.toFixed(1), "Conversions"]}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                formatter={((v: any) => [Number(v ?? 0).toFixed(1), "Conversions"]) as any}
                 cursor={{ fill: "#ffffff08" }}
               />
               <Bar dataKey="conversions" radius={[4, 4, 0, 0]}>
