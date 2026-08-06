@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Account, DashboardData, TimePeriodMetrics } from "@/lib/types";
 import AccountCard from "./AccountCard";
 import ConversionsTrend from "./ConversionsTrend";
@@ -23,6 +24,7 @@ const STORAGE_KEY = "account-active-overrides";
 const ORDER_KEY   = "account-order";
 
 export default function Dashboard() {
+  const router = useRouter();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -178,6 +180,19 @@ export default function Dashboard() {
                   <path d="M21 12a9 9 0 11-6.219-8.56" strokeLinecap="round"/>
                 </svg>
                 <span className="hidden sm:inline">{loading ? "Loading…" : "Refresh"}</span>
+              </button>
+              <button
+                onClick={async () => {
+                  await fetch("/api/auth/logout", { method: "POST" });
+                  router.push("/login");
+                }}
+                title="Sign out"
+                className="flex items-center gap-1.5 rounded-lg border border-[#1e1e2e] bg-[#111118] px-3 py-1.5 text-[12px] font-medium text-[#6b7280] transition hover:border-red-500/30 hover:text-red-400"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/>
+                </svg>
+                <span className="hidden sm:inline">Sign out</span>
               </button>
             </div>
           </div>
