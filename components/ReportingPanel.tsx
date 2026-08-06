@@ -192,57 +192,67 @@ export default function ReportingPanel({ accountId, accountName, currency }: Pro
       .catch(() => { setError("Failed to load report data"); setLoading(false); });
   }, [accountId, period]);
 
+  const [exportError, setExportError] = useState<string | null>(null);
+
   const handleExportPdf = useCallback(async () => {
     const el = document.getElementById(`report-panel-${accountId}`);
-    if (!el) return;
+    if (!el) {
+      setExportError("Could not find report element — try refreshing.");
+      return;
+    }
     setExporting(true);
+    setExportError(null);
     try {
-      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
-        import("html2canvas"),
+      const [{ toPng }, { jsPDF }] = await Promise.all([
+        import("html-to-image"),
         import("jspdf"),
       ]);
 
-      const canvas = await html2canvas(el, {
+      const dataUrl = await toPng(el, {
         backgroundColor: "#0a0e1a",
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        allowTaint: true,
+        pixelRatio: 2,
+        skipFonts: false,
       });
 
-      const imgData   = canvas.toDataURL("image/png");
-      const pdf       = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
-      const pageW     = pdf.internal.pageSize.getWidth();
-      const pageH     = pdf.internal.pageSize.getHeight();
-      const imgW      = canvas.width;
-      const imgH      = canvas.height;
-      const ratio     = pageW / imgW;
-      const scaledH   = imgH * ratio;
+      const img    = new Image();
+      img.src      = dataUrl;
+      await new Promise((res) => { img.onload = res; });
 
-      let yOffset = 0;
-      let remaining = scaledH;
+      const pdf    = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+      const pageW  = pdf.internal.pageSize.getWidth();
+      const pageH  = pdf.internal.pageSize.getHeight();
+      const ratio  = pageW / img.naturalWidth;
+      const totalH = img.naturalHeight * ratio;
+
+      // Slice across pages if taller than one A4 landscape sheet
+      const canvas     = document.createElement("canvas");
+      canvas.width     = img.naturalWidth;
+      canvas.height    = img.naturalHeight;
+      canvas.getContext("2d")!.drawImage(img, 0, 0);
+
+      let remaining = totalH;
+      let page      = 0;
 
       while (remaining > 0) {
-        const sliceH     = Math.min(pageH, remaining);
-        const srcY       = (scaledH - remaining) / ratio;
-        const srcSliceH  = sliceH / ratio;
+        const sliceH    = Math.min(pageH, remaining);
+        const srcY      = (page * pageH) / ratio;
+        const srcSliceH = sliceH / ratio;
 
-        const sliceCanvas = document.createElement("canvas");
-        sliceCanvas.width  = imgW;
-        sliceCanvas.height = srcSliceH;
-        const ctx = sliceCanvas.getContext("2d")!;
-        ctx.drawImage(canvas, 0, srcY, imgW, srcSliceH, 0, 0, imgW, srcSliceH);
+        const slice = document.createElement("canvas");
+        slice.width  = img.naturalWidth;
+        slice.height = Math.ceil(srcSliceH);
+        slice.getContext("2d")!.drawImage(canvas, 0, Math.floor(srcY), img.naturalWidth, Math.ceil(srcSliceH), 0, 0, img.naturalWidth, Math.ceil(srcSliceH));
 
-        if (yOffset > 0) pdf.addPage();
-        pdf.addImage(sliceCanvas.toDataURL("image/png"), "PNG", 0, 0, pageW, sliceH);
-
+        if (page > 0) pdf.addPage();
+        pdf.addImage(slice.toDataURL("image/png"), "PNG", 0, 0, pageW, sliceH);
         remaining -= pageH;
-        yOffset   += pageH;
+        page++;
       }
 
       pdf.save(`${accountName || accountId}-google-ads-report.pdf`);
     } catch (err) {
       console.error("PDF export error", err);
+      setExportError(err instanceof Error ? err.message : "Export failed — check console.");
     } finally {
       setExporting(false);
     }
@@ -329,6 +339,14 @@ export default function ReportingPanel({ accountId, accountName, currency }: Pro
           )}
         </button>
       </div>
+
+      {/* Export error */}
+      {exportError && (
+        <div className="mb-3 rounded-lg border border-red-900/50 bg-red-950/30 px-3 py-2 text-xs text-red-400 flex items-center justify-between">
+          <span>{exportError}</span>
+          <button onClick={() => setExportError(null)} className="ml-3 text-red-500 hover:text-red-300">✕</button>
+        </div>
+      )}
 
       {/* Section banner */}
       <div className="bg-[#1a2540] rounded-lg px-4 py-2 mb-4">
