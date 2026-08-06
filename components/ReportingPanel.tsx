@@ -44,22 +44,22 @@ function fmtDate(iso: string) {
   try { return format(parseISO(iso), "MMM d, yyyy"); } catch { return iso; }
 }
 
-function Change({ value }: { value: number | null }) {
+function Change({ value, inverse = false }: { value: number | null; inverse?: boolean }) {
   if (value === null) return <span className="text-[#6b7280] text-xs">—</span>;
-  const pos = value >= 0;
+  const improved = inverse ? value < 0 : value >= 0;
   return (
-    <span className={`text-xs font-semibold flex items-center gap-0.5 ${pos ? "text-[#34a853]" : "text-[#ea4335]"}`}>
-      {pos ? "▲" : "▼"} {Math.abs(value).toFixed(1)}%
+    <span className={`text-xs font-semibold flex items-center gap-0.5 ${improved ? "text-[#34a853]" : "text-[#ea4335]"}`}>
+      {value >= 0 ? "▲" : "▼"} {Math.abs(value).toFixed(1)}%
     </span>
   );
 }
 
-function StatTile({ label, value, change }: { label: string; value: string; change: number | null }) {
+function StatTile({ label, value, change, inverse = false }: { label: string; value: string; change: number | null; inverse?: boolean }) {
   return (
     <div className="bg-[#141a2e] rounded-lg p-3 flex flex-col gap-1">
       <p className="text-[10px] uppercase tracking-wider text-[#8b93b0] font-medium">{label}</p>
       <p className="text-xl font-bold text-white leading-tight">{value}</p>
-      <Change value={change} />
+      <Change value={change} inverse={inverse} />
     </div>
   );
 }
@@ -280,6 +280,12 @@ export default function ReportingPanel({ accountId, accountName, currency }: Pro
   return (
     <div className="report-panel text-white" id={`report-panel-${accountId}`}>
 
+      {/* Account name */}
+      <div className="mb-3 pb-3 border-b border-[#1e2a44]">
+        <h2 className="text-base font-bold text-white">{accountName}</h2>
+        <p className="text-xs text-[#6b7280] mt-0.5">Google Ads Performance Report</p>
+      </div>
+
       {/* Header row */}
       <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
         <div className="flex items-center gap-3">
@@ -377,7 +383,7 @@ export default function ReportingPanel({ accountId, accountName, currency }: Pro
           <div className="grid grid-cols-2 gap-2">
             <StatTile label="Conversions"     value={m.conversions.toFixed(1)}                                             change={m.conversionsChange} />
             <StatTile label="Conv. rate"      value={`${m.convRate.toFixed(1)}%`}                                          change={m.convRateChange} />
-            <StatTile label="Cost / conv."    value={m.costPerConv !== null ? fmt(cur, m.costPerConv) : "—"}               change={m.costPerConvChange} />
+            <StatTile label="Cost / conv."    value={m.costPerConv !== null ? fmt(cur, m.costPerConv) : "—"}               change={m.costPerConvChange} inverse />
             <StatTile label="All conv. value" value={m.allConvValue >= 1000 ? `${(m.allConvValue / 1000).toFixed(1)}K` : fmt(cur, m.allConvValue)} change={m.allConvValueChange} />
           </div>
           <SectionChart
@@ -391,8 +397,8 @@ export default function ReportingPanel({ accountId, accountName, currency }: Pro
         <div className="bg-[#0d1120] rounded-xl border border-[#1e2a44] p-4 flex flex-col gap-3">
           <p className="text-xs font-semibold text-[#8b93b0] uppercase tracking-wider">Cost Per Click</p>
           <div className="grid grid-cols-2 gap-2">
-            <StatTile label="Cost"     value={fmt(cur, m.cost)}   change={m.costChange} />
-            <StatTile label="Avg. CPC" value={fmt(cur, m.avgCpc)} change={m.avgCpcChange} />
+            <StatTile label="Cost"     value={fmt(cur, m.cost)}   change={m.costChange}   inverse />
+            <StatTile label="Avg. CPC" value={fmt(cur, m.avgCpc)} change={m.avgCpcChange} inverse />
           </div>
           <SectionChart
             data={report.dailyData}

@@ -558,6 +558,7 @@ export async function fetchAccountReport(customerId: string, period = "LAST_30_D
   }
 
   const campaigns: ReportCampaign[] = Object.entries(campMap)
+    .filter(([, d]) => d.cost > 0 || d.clicks > 0)
     .map(([name, d]) => ({
       name,
       avgCpc:      d.clicks > 0 ? Math.round((d.cost / d.clicks) * 100) / 100 : 0,
