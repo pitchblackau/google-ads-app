@@ -1,5 +1,5 @@
 import { Account, AccountReport, DailyConversion, Suggestion } from "./types";
-import { format, subDays } from "date-fns";
+import { format, subDays, subMonths, startOfMonth } from "date-fns";
 
 function rand(min: number, max: number) {
   return Math.random() * (max - min) + min;
@@ -198,5 +198,12 @@ export function generateMockAccountReport(): AccountReport {
       { device: "Desktop", clicks: Math.round(totalClicks * 0.35), conversions: Math.round(totalConversions * 0.40 * 100) / 100, cost: Math.round(totalCost * 0.40 * 100) / 100 },
       { device: "Tablet",  clicks: Math.round(totalClicks * 0.10), conversions: Math.round(totalConversions * 0.10 * 100) / 100, cost: Math.round(totalCost * 0.10 * 100) / 100 },
     ],
+    monthlyConversions: Array.from({ length: 12 }, (_, i) => {
+      const d = startOfMonth(subMonths(now, 11 - i));
+      return {
+        month: format(d, "yyyy-MM"),
+        conversions: Math.round(rand(30, 180) * 100) / 100,
+      };
+    }),
   };
 }

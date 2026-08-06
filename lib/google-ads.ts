@@ -465,7 +465,11 @@ export async function fetchAccountReport(customerId: string, period = "LAST_30_D
   const customer = getCustomer(customerId);
   const { currentStart, currentEnd, prevStart, prevEnd } = getReportDateRanges(period);
 
-  const [dailyRows, prevRows, campaignRows, deviceRows] = await Promise.all([
+  const now12m = new Date();
+  const month12Start = iso(new Date(now12m.getFullYear() - 1, now12m.getMonth(), 1));
+  const month12End   = iso(new Date(now12m.getFullYear(), now12m.getMonth() + 1, 0));
+
+  const [dailyRows, prevRows, campaignRows, deviceRows, monthlyRows] = await Promise.all([
     customer.query(`
       SELECT segments.date, metrics.clicks, metrics.impressions,
              metrics.conversions, metrics.cost_micros, metrics.conversions_value
@@ -493,6 +497,12 @@ export async function fetchAccountReport(customerId: string, period = "LAST_30_D
       FROM campaign
       WHERE segments.date >= '${currentStart}' AND segments.date <= '${currentEnd}'
         AND campaign.status != 'REMOVED'
+    `),
+    customer.query(`
+      SELECT segments.month, metrics.conversions
+      FROM customer
+      WHERE segments.date >= '${month12Start}' AND segments.date <= '${month12End}'
+      ORDER BY segments.month ASC
     `),
   ]);
 
@@ -591,6 +601,17 @@ export async function fetchAccountReport(customerId: string, period = "LAST_30_D
     }))
     .sort((a, b) => b.clicks - a.clicks);
 
+  // Monthly conversions (last 12 months)
+  const monthlyMap: Record<string, number> = {};
+  for (const row of monthlyRows) {
+    const month = ((row.segments?.month ?? "") as string).slice(0, 7); // "YYYY-MM"
+    if (!month) continue;
+    monthlyMap[month] = (monthlyMap[month] ?? 0) + Number(row.metrics?.conversions ?? 0);
+  }
+  const monthlyConversions = Object.entries(monthlyMap)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([month, conversions]) => ({ month, conversions: Math.round(conversions * 100) / 100 }));
+
   return {
     periodStart: currentStart,
     periodEnd:   currentEnd,
@@ -617,5 +638,6 @@ export async function fetchAccountReport(customerId: string, period = "LAST_30_D
     dailyData,
     campaigns,
     devices,
+    monthlyConversions,
   };
 }

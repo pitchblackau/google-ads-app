@@ -149,6 +149,11 @@ export interface ReportMetrics {
   avgCpcChange: number | null;
 }
 
+export interface MonthlyConversions {
+  month: string;   // "YYYY-MM" e.g. "2025-08"
+  conversions: number;
+}
+
 export interface AccountReport {
   periodStart: string;
   periodEnd: string;
@@ -156,4 +161,5 @@ export interface AccountReport {
   dailyData: DailyReportMetrics[];
   campaigns: ReportCampaign[];
   devices: ReportDevice[];
+  monthlyConversions: MonthlyConversions[];
 }

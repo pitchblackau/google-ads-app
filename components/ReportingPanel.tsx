@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import {
   ComposedChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend, PieChart, Pie, Cell,
+  BarChart, Bar,
 } from "recharts";
 import { format, parseISO } from "date-fns";
 import { AccountReport } from "@/lib/types";
@@ -459,6 +460,52 @@ export default function ReportingPanel({ accountId, accountName, currency }: Pro
           )}
         </div>
       </div>
+
+      {/* Monthly Conversions bar chart */}
+      {report.monthlyConversions && report.monthlyConversions.length > 0 && (
+        <div className="mt-4 bg-[#0d1120] rounded-xl border border-[#1e2a44] p-4">
+          <p className="text-xs font-semibold text-[#8b93b0] uppercase tracking-wider mb-4">
+            Conversions by Month
+          </p>
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart
+              data={report.monthlyConversions.map((m) => ({
+                ...m,
+                label: new Date(m.month + "-02").toLocaleString("en-AU", { month: "short", year: "2-digit" }),
+              }))}
+              margin={{ top: 4, right: 8, left: -10, bottom: 0 }}
+              barCategoryGap="30%"
+            >
+              <CartesianGrid strokeDasharray="3 3" stroke="#1e2a44" vertical={false} />
+              <XAxis
+                dataKey="label"
+                tick={{ fill: "#6b7280", fontSize: 10 }}
+                tickLine={false}
+                axisLine={false}
+              />
+              <YAxis
+                tick={{ fill: "#6b7280", fontSize: 10 }}
+                tickLine={false}
+                axisLine={false}
+                width={36}
+                tickFormatter={(v) => (v >= 1000 ? `${(v / 1000).toFixed(1)}K` : String(v))}
+              />
+              <Tooltip
+                contentStyle={{ background: "#0d1120", border: "1px solid #1e2a44", borderRadius: 6, fontSize: 11 }}
+                labelStyle={{ color: "#9aa0b4" }}
+                itemStyle={{ color: "#00fff9" }}
+                formatter={(v: number) => [v.toFixed(1), "Conversions"]}
+                cursor={{ fill: "#ffffff08" }}
+              />
+              <Bar dataKey="conversions" radius={[4, 4, 0, 0]}>
+                {report.monthlyConversions.map((_, i) => (
+                  <Cell key={i} fill="#00fff9" fillOpacity={0.7} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
 
     </div>
   );
