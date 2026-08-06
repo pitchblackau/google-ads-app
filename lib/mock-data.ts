@@ -1,4 +1,4 @@
-import { Account, DailyConversion, Suggestion } from "./types";
+import { Account, AccountReport, DailyConversion, Suggestion } from "./types";
 import { format, subDays } from "date-fns";
 
 function rand(min: number, max: number) {
@@ -133,4 +133,70 @@ export function generateMockAccountTrend(days = 30): DailyConversion[] {
     date: format(subDays(new Date(), days - 1 - i), "yyyy-MM-dd"),
     conversions: Math.round(rand(2, 40)),
   }));
+}
+
+export function generateMockAccountReport(): AccountReport {
+  const now = new Date();
+  const periodEnd   = format(now, "yyyy-MM-dd");
+  const periodStart = format(subDays(now, 30), "yyyy-MM-dd");
+
+  const dailyData = Array.from({ length: 30 }, (_, i) => {
+    const clicks      = Math.round(rand(40, 120));
+    const impressions = Math.round(rand(300, 1000));
+    const conversions = Math.round(rand(5, 25) * 100) / 100;
+    const cost        = Math.round(rand(80, 300) * 100) / 100;
+    return {
+      date:        format(subDays(now, 29 - i), "yyyy-MM-dd"),
+      clicks,
+      impressions,
+      ctr:         impressions > 0 ? Math.round((clicks / impressions) * 10000) / 100 : 0,
+      conversions,
+      convRate:    clicks > 0 ? Math.round((conversions / clicks) * 10000) / 100 : 0,
+      cost,
+      avgCpc:      clicks > 0 ? Math.round((cost / clicks) * 100) / 100 : 0,
+    };
+  });
+
+  const totalClicks      = dailyData.reduce((s, d) => s + d.clicks, 0);
+  const totalImpressions = dailyData.reduce((s, d) => s + d.impressions, 0);
+  const totalConversions = dailyData.reduce((s, d) => s + d.conversions, 0);
+  const totalCost        = dailyData.reduce((s, d) => s + d.cost, 0);
+  const totalConvValue   = Math.round(totalConversions * rand(80, 150) * 100) / 100;
+
+  return {
+    periodStart,
+    periodEnd,
+    metrics: {
+      clicks:      totalClicks,
+      ctr:         Math.round((totalClicks / totalImpressions) * 10000) / 100,
+      impressions: totalImpressions,
+      conversions: Math.round(totalConversions * 100) / 100,
+      convRate:    Math.round((totalConversions / totalClicks) * 10000) / 100,
+      costPerConv: Math.round((totalCost / totalConversions) * 100) / 100,
+      allConvValue: totalConvValue,
+      cost:        Math.round(totalCost * 100) / 100,
+      avgCpc:      Math.round((totalCost / totalClicks) * 100) / 100,
+      clicksChange:       4.7,
+      ctrChange:          5.9,
+      impressionsChange:  -1.1,
+      conversionsChange:  55.5,
+      convRateChange:     48.5,
+      costPerConvChange:  -38.0,
+      allConvValueChange: 50.5,
+      costChange:         -3.6,
+      avgCpcChange:       -7.9,
+    },
+    dailyData,
+    campaigns: [
+      { name: "Brand Keywords",    avgCpc: 1.82, costPerConv: 8.40,  cost: 1820.00, allConvValue: 22400.0, conversions: 216.7 },
+      { name: "Generic Services",  avgCpc: 2.94, costPerConv: 14.20, cost: 2100.00, allConvValue: 18600.0, conversions: 147.9 },
+      { name: "Local Push",        avgCpc: 3.11, costPerConv: 18.50, cost: 890.00,  allConvValue: 7200.0,  conversions: 48.1  },
+      { name: "Remarketing",       avgCpc: 1.23, costPerConv: 6.80,  cost: 380.00,  allConvValue: 4800.0,  conversions: 55.9  },
+    ],
+    devices: [
+      { device: "Mobile",  clicks: Math.round(totalClicks * 0.55), conversions: Math.round(totalConversions * 0.50 * 100) / 100, cost: Math.round(totalCost * 0.50 * 100) / 100 },
+      { device: "Desktop", clicks: Math.round(totalClicks * 0.35), conversions: Math.round(totalConversions * 0.40 * 100) / 100, cost: Math.round(totalCost * 0.40 * 100) / 100 },
+      { device: "Tablet",  clicks: Math.round(totalClicks * 0.10), conversions: Math.round(totalConversions * 0.10 * 100) / 100, cost: Math.round(totalCost * 0.10 * 100) / 100 },
+    ],
+  };
 }

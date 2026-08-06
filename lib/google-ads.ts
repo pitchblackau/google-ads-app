@@ -1,5 +1,5 @@
 import { GoogleAdsApi } from "google-ads-api";
-import { Account, CampaignData, AdGroupData, DailyConversion } from "./types";
+import { Account, CampaignData, AdGroupData, DailyConversion, AccountReport, DailyReportMetrics, ReportCampaign, ReportDevice } from "./types";
 
 // ── Suggestion data types ─────────────────────────────────────────
 export interface KeywordRow {
@@ -426,4 +426,175 @@ export async function fetchSuggestionsData(customerId: string): Promise<Suggesti
   });
 
   return { keywords, searchTerms, adGroupAdCounts: Object.values(agMap), campaigns };
+}
+
+// ── Account report (30-day stats with comparison + charts) ──────
+
+function pctChange(curr: number, prev: number): number | null {
+  if (prev === 0) return null;
+  return Math.round(((curr - prev) / prev) * 1000) / 10;
+}
+
+export async function fetchAccountReport(customerId: string): Promise<AccountReport> {
+  const customer = getCustomer(customerId);
+  const now = new Date();
+  const todayStr = now.toISOString().slice(0, 10);
+  const d30Start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const d30Str = d30Start.toISOString().slice(0, 10);
+  const d60Start = new Date(now.getTime() - 61 * 24 * 60 * 60 * 1000);
+  const d60Str = d60Start.toISOString().slice(0, 10);
+  const d31Str = new Date(now.getTime() - 31 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+  const [dailyRows, prevRows, campaignRows, deviceRows] = await Promise.all([
+    customer.query(`
+      SELECT segments.date, metrics.clicks, metrics.impressions,
+             metrics.conversions, metrics.cost_micros, metrics.conversions_value
+      FROM customer
+      WHERE segments.date >= '${d30Str}' AND segments.date <= '${todayStr}'
+      ORDER BY segments.date ASC
+    `),
+    customer.query(`
+      SELECT metrics.clicks, metrics.impressions, metrics.conversions,
+             metrics.cost_micros, metrics.conversions_value
+      FROM customer
+      WHERE segments.date >= '${d60Str}' AND segments.date <= '${d31Str}'
+    `),
+    customer.query(`
+      SELECT campaign.name, metrics.clicks, metrics.impressions,
+             metrics.conversions, metrics.cost_micros, metrics.conversions_value
+      FROM campaign
+      WHERE segments.date >= '${d30Str}' AND segments.date <= '${todayStr}'
+        AND campaign.status != 'REMOVED'
+      ORDER BY metrics.cost_micros DESC
+      LIMIT 500
+    `),
+    customer.query(`
+      SELECT segments.device, metrics.clicks, metrics.conversions, metrics.cost_micros
+      FROM campaign
+      WHERE segments.date >= '${d30Str}' AND segments.date <= '${todayStr}'
+        AND campaign.status != 'REMOVED'
+    `),
+  ]);
+
+  // Aggregate daily data into a map by date
+  type DayAgg = { clicks: number; impressions: number; conversions: number; cost: number; convValue: number };
+  const dailyMap: Record<string, DayAgg> = {};
+  for (const row of dailyRows) {
+    const date = row.segments?.date as string;
+    if (!date) continue;
+    if (!dailyMap[date]) dailyMap[date] = { clicks: 0, impressions: 0, conversions: 0, cost: 0, convValue: 0 };
+    dailyMap[date].clicks      += Number(row.metrics?.clicks ?? 0);
+    dailyMap[date].impressions += Number(row.metrics?.impressions ?? 0);
+    dailyMap[date].conversions += Number(row.metrics?.conversions ?? 0);
+    dailyMap[date].cost        += Number(row.metrics?.cost_micros ?? 0) / 1_000_000;
+    dailyMap[date].convValue   += Number(row.metrics?.conversions_value ?? 0);
+  }
+
+  const dailyData: DailyReportMetrics[] = Object.entries(dailyMap)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, d]) => ({
+      date,
+      clicks: d.clicks,
+      impressions: d.impressions,
+      ctr: d.impressions > 0 ? Math.round((d.clicks / d.impressions) * 10000) / 100 : 0,
+      conversions: Math.round(d.conversions * 100) / 100,
+      convRate: d.clicks > 0 ? Math.round((d.conversions / d.clicks) * 10000) / 100 : 0,
+      cost: Math.round(d.cost * 100) / 100,
+      avgCpc: d.clicks > 0 ? Math.round((d.cost / d.clicks) * 100) / 100 : 0,
+    }));
+
+  // Current period totals
+  const totalClicks       = dailyData.reduce((s, d) => s + d.clicks, 0);
+  const totalImpressions  = dailyData.reduce((s, d) => s + d.impressions, 0);
+  const totalConversions  = dailyData.reduce((s, d) => s + d.conversions, 0);
+  const totalCost         = dailyData.reduce((s, d) => s + d.cost, 0);
+  const totalConvValue    = Object.values(dailyMap).reduce((s, d) => s + d.convValue, 0);
+  const ctr         = totalImpressions > 0 ? totalClicks / totalImpressions * 100 : 0;
+  const convRate    = totalClicks > 0 ? totalConversions / totalClicks * 100 : 0;
+  const costPerConv = totalConversions > 0 ? totalCost / totalConversions : null;
+  const avgCpc      = totalClicks > 0 ? totalCost / totalClicks : 0;
+
+  // Previous period totals
+  const prevClicks      = prevRows.reduce((s: number, r: any) => s + Number(r.metrics?.clicks ?? 0), 0);
+  const prevImpressions = prevRows.reduce((s: number, r: any) => s + Number(r.metrics?.impressions ?? 0), 0);
+  const prevConversions = prevRows.reduce((s: number, r: any) => s + Number(r.metrics?.conversions ?? 0), 0);
+  const prevCost        = prevRows.reduce((s: number, r: any) => s + Number(r.metrics?.cost_micros ?? 0), 0) / 1_000_000;
+  const prevConvValue   = prevRows.reduce((s: number, r: any) => s + Number(r.metrics?.conversions_value ?? 0), 0);
+  const prevCtr         = prevImpressions > 0 ? prevClicks / prevImpressions * 100 : 0;
+  const prevConvRate    = prevClicks > 0 ? prevConversions / prevClicks * 100 : 0;
+  const prevCostPerConv = prevConversions > 0 ? prevCost / prevConversions : null;
+  const prevAvgCpc      = prevClicks > 0 ? prevCost / prevClicks : 0;
+
+  // Campaign aggregation (rows contain per-date breakdowns; roll up by name)
+  const campMap: Record<string, { clicks: number; conversions: number; cost: number; convValue: number }> = {};
+  for (const row of campaignRows) {
+    const name = (row.campaign?.name ?? "") as string;
+    if (!name) continue;
+    if (!campMap[name]) campMap[name] = { clicks: 0, conversions: 0, cost: 0, convValue: 0 };
+    campMap[name].clicks      += Number(row.metrics?.clicks ?? 0);
+    campMap[name].conversions += Number(row.metrics?.conversions ?? 0);
+    campMap[name].cost        += Number(row.metrics?.cost_micros ?? 0) / 1_000_000;
+    campMap[name].convValue   += Number(row.metrics?.conversions_value ?? 0);
+  }
+
+  const campaigns: ReportCampaign[] = Object.entries(campMap)
+    .map(([name, d]) => ({
+      name,
+      avgCpc:      d.clicks > 0 ? Math.round((d.cost / d.clicks) * 100) / 100 : 0,
+      costPerConv: d.conversions > 0 ? Math.round((d.cost / d.conversions) * 100) / 100 : null,
+      cost:        Math.round(d.cost * 100) / 100,
+      allConvValue: Math.round(d.convValue * 100) / 100,
+      conversions: Math.round(d.conversions * 100) / 100,
+    }))
+    .sort((a, b) => b.cost - a.cost)
+    .slice(0, 10);
+
+  // Device breakdown
+  const DEVICE_NAMES: Record<number, string> = { 2: "Mobile", 3: "Desktop", 4: "Tablet", 5: "TV" };
+  const devMap: Record<string, { clicks: number; conversions: number; cost: number }> = {};
+  for (const row of deviceRows) {
+    const code   = Number(row.segments?.device ?? 0);
+    const device = DEVICE_NAMES[code] ?? "Other";
+    if (!devMap[device]) devMap[device] = { clicks: 0, conversions: 0, cost: 0 };
+    devMap[device].clicks      += Number(row.metrics?.clicks ?? 0);
+    devMap[device].conversions += Number(row.metrics?.conversions ?? 0);
+    devMap[device].cost        += Number(row.metrics?.cost_micros ?? 0) / 1_000_000;
+  }
+
+  const devices: ReportDevice[] = Object.entries(devMap)
+    .map(([device, d]) => ({
+      device,
+      clicks:      d.clicks,
+      conversions: Math.round(d.conversions * 100) / 100,
+      cost:        Math.round(d.cost * 100) / 100,
+    }))
+    .sort((a, b) => b.clicks - a.clicks);
+
+  return {
+    periodStart: d30Str,
+    periodEnd:   todayStr,
+    metrics: {
+      clicks:      totalClicks,
+      ctr:         Math.round(ctr * 100) / 100,
+      impressions: totalImpressions,
+      conversions: Math.round(totalConversions * 100) / 100,
+      convRate:    Math.round(convRate * 100) / 100,
+      costPerConv: costPerConv !== null ? Math.round(costPerConv * 100) / 100 : null,
+      allConvValue: Math.round(totalConvValue * 100) / 100,
+      cost:        Math.round(totalCost * 100) / 100,
+      avgCpc:      Math.round(avgCpc * 100) / 100,
+      clicksChange:       pctChange(totalClicks, prevClicks),
+      ctrChange:          pctChange(ctr, prevCtr),
+      impressionsChange:  pctChange(totalImpressions, prevImpressions),
+      conversionsChange:  pctChange(totalConversions, prevConversions),
+      convRateChange:     pctChange(convRate, prevConvRate),
+      costPerConvChange:  costPerConv && prevCostPerConv ? pctChange(costPerConv, prevCostPerConv) : null,
+      allConvValueChange: pctChange(totalConvValue, prevConvValue),
+      costChange:         pctChange(totalCost, prevCost),
+      avgCpcChange:       pctChange(avgCpc, prevAvgCpc),
+    },
+    dailyData,
+    campaigns,
+    devices,
+  };
 }

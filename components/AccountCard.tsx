@@ -1,9 +1,10 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Account } from "@/lib/types";
 import MetricBox from "./MetricBox";
+import ReportingPanel from "./ReportingPanel";
 import { clsx } from "clsx";
 
 interface AccountCardProps {
@@ -36,6 +37,7 @@ export default function AccountCard({
 }: AccountCardProps) {
   const router = useRouter();
   const cardRef = useRef<HTMLDivElement>(null);
+  const [tab, setTab] = useState<"overview" | "reporting">("overview");
 
   return (
     <div
@@ -120,16 +122,50 @@ export default function AccountCard({
         </button>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
-        {PERIODS.map(({ key, label }) => (
-          <MetricBox
-            key={key}
-            label={label}
-            metrics={account.metrics[key]}
-            currency={account.currency}
-          />
-        ))}
+      {/* Tab switcher */}
+      <div className="flex items-center gap-1 border-b border-[#1e1e2e] pb-2">
+        <button
+          onClick={() => setTab("overview")}
+          className={clsx(
+            "px-3 py-1 text-[11px] font-medium rounded-md transition-all duration-150",
+            tab === "overview"
+              ? "bg-[#1e1e2e] text-white"
+              : "text-[#4e4e63] hover:text-[#8b93b0]"
+          )}
+        >
+          Overview
+        </button>
+        <button
+          onClick={() => setTab("reporting")}
+          className={clsx(
+            "px-3 py-1 text-[11px] font-medium rounded-md transition-all duration-150",
+            tab === "reporting"
+              ? "bg-[#1e1e2e] text-white"
+              : "text-[#4e4e63] hover:text-[#8b93b0]"
+          )}
+        >
+          Reporting
+        </button>
       </div>
+
+      {tab === "overview" ? (
+        <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
+          {PERIODS.map(({ key, label }) => (
+            <MetricBox
+              key={key}
+              label={label}
+              metrics={account.metrics[key]}
+              currency={account.currency}
+            />
+          ))}
+        </div>
+      ) : (
+        <ReportingPanel
+          accountId={account.id}
+          accountName={account.name}
+          currency={account.currency}
+        />
+      )}
     </div>
   );
 }

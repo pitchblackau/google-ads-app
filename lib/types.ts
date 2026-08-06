@@ -98,3 +98,62 @@ export const PERIOD_OPTIONS = [
 ] as const;
 
 export type PeriodValue = typeof PERIOD_OPTIONS[number]["value"];
+
+// ── Report data types ─────────────────────────────────────────────
+
+export interface DailyReportMetrics {
+  date: string;
+  clicks: number;
+  impressions: number;
+  ctr: number;
+  conversions: number;
+  convRate: number;
+  cost: number;
+  avgCpc: number;
+}
+
+export interface ReportCampaign {
+  name: string;
+  avgCpc: number;
+  costPerConv: number | null;
+  cost: number;
+  allConvValue: number;
+  conversions: number;
+}
+
+export interface ReportDevice {
+  device: string;
+  clicks: number;
+  conversions: number;
+  cost: number;
+}
+
+export interface ReportMetrics {
+  clicks: number;
+  ctr: number;
+  impressions: number;
+  conversions: number;
+  convRate: number;
+  costPerConv: number | null;
+  allConvValue: number;
+  cost: number;
+  avgCpc: number;
+  clicksChange: number | null;
+  ctrChange: number | null;
+  impressionsChange: number | null;
+  conversionsChange: number | null;
+  convRateChange: number | null;
+  costPerConvChange: number | null;
+  allConvValueChange: number | null;
+  costChange: number | null;
+  avgCpcChange: number | null;
+}
+
+export interface AccountReport {
+  periodStart: string;
+  periodEnd: string;
+  metrics: ReportMetrics;
+  dailyData: DailyReportMetrics[];
+  campaigns: ReportCampaign[];
+  devices: ReportDevice[];
+}
