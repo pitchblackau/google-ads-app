@@ -123,14 +123,14 @@ export default function AccountCard({
       </div>
 
       {/* Tab switcher */}
-      <div className="flex items-center gap-1 border-b border-[#1e1e2e] pb-2">
+      <div className="flex items-center gap-0.5 rounded-lg bg-[#0d0d14] p-0.5 self-start">
         <button
           onClick={() => setTab("overview")}
           className={clsx(
-            "px-3 py-1 text-[11px] font-medium rounded-md transition-all duration-150",
+            "px-4 py-1.5 text-xs font-semibold rounded-md transition-all duration-150",
             tab === "overview"
-              ? "bg-[#1e1e2e] text-white"
-              : "text-[#4e4e63] hover:text-[#8b93b0]"
+              ? "bg-[#1e1e2e] text-white shadow"
+              : "text-[#6b7280] hover:text-[#a0a8c0]"
           )}
         >
           Overview
@@ -138,10 +138,10 @@ export default function AccountCard({
         <button
           onClick={() => setTab("reporting")}
           className={clsx(
-            "px-3 py-1 text-[11px] font-medium rounded-md transition-all duration-150",
+            "px-4 py-1.5 text-xs font-semibold rounded-md transition-all duration-150",
             tab === "reporting"
-              ? "bg-[#1e1e2e] text-white"
-              : "text-[#4e4e63] hover:text-[#8b93b0]"
+              ? "bg-[#1e1e2e] text-white shadow"
+              : "text-[#6b7280] hover:text-[#a0a8c0]"
           )}
         >
           Reporting
