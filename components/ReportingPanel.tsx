@@ -175,12 +175,13 @@ function DeviceDonut({
   );
 }
 
-export default function ReportingPanel({ accountId, currency }: Props) {
-  const [period, setPeriod]   = useState<ReportPeriod>("LAST_30_DAYS");
-  const [open, setOpen]       = useState(false);
-  const [report, setReport]   = useState<AccountReport | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError]     = useState<string | null>(null);
+export default function ReportingPanel({ accountId, accountName, currency }: Props) {
+  const [period, setPeriod]     = useState<ReportPeriod>("LAST_30_DAYS");
+  const [open, setOpen]         = useState(false);
+  const [report, setReport]     = useState<AccountReport | null>(null);
+  const [loading, setLoading]   = useState(true);
+  const [error, setError]       = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -191,7 +192,61 @@ export default function ReportingPanel({ accountId, currency }: Props) {
       .catch(() => { setError("Failed to load report data"); setLoading(false); });
   }, [accountId, period]);
 
-  const handlePrint = useCallback(() => { window.print(); }, []);
+  const handleExportPdf = useCallback(async () => {
+    const el = document.getElementById(`report-panel-${accountId}`);
+    if (!el) return;
+    setExporting(true);
+    try {
+      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+        import("html2canvas"),
+        import("jspdf"),
+      ]);
+
+      const canvas = await html2canvas(el, {
+        backgroundColor: "#0a0e1a",
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        allowTaint: true,
+      });
+
+      const imgData   = canvas.toDataURL("image/png");
+      const pdf       = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+      const pageW     = pdf.internal.pageSize.getWidth();
+      const pageH     = pdf.internal.pageSize.getHeight();
+      const imgW      = canvas.width;
+      const imgH      = canvas.height;
+      const ratio     = pageW / imgW;
+      const scaledH   = imgH * ratio;
+
+      let yOffset = 0;
+      let remaining = scaledH;
+
+      while (remaining > 0) {
+        const sliceH     = Math.min(pageH, remaining);
+        const srcY       = (scaledH - remaining) / ratio;
+        const srcSliceH  = sliceH / ratio;
+
+        const sliceCanvas = document.createElement("canvas");
+        sliceCanvas.width  = imgW;
+        sliceCanvas.height = srcSliceH;
+        const ctx = sliceCanvas.getContext("2d")!;
+        ctx.drawImage(canvas, 0, srcY, imgW, srcSliceH, 0, 0, imgW, srcSliceH);
+
+        if (yOffset > 0) pdf.addPage();
+        pdf.addImage(sliceCanvas.toDataURL("image/png"), "PNG", 0, 0, pageW, sliceH);
+
+        remaining -= pageH;
+        yOffset   += pageH;
+      }
+
+      pdf.save(`${accountName || accountId}-google-ads-report.pdf`);
+    } catch (err) {
+      console.error("PDF export error", err);
+    } finally {
+      setExporting(false);
+    }
+  }, [accountId, accountName]);
 
   const periodLabel = REPORT_PERIODS.find((p) => p.value === period)?.label ?? "Last 30 Days";
 
@@ -213,7 +268,7 @@ export default function ReportingPanel({ accountId, currency }: Props) {
   const cur = currency;
 
   return (
-    <div className="report-panel text-white">
+    <div className="report-panel text-white" id={`report-panel-${accountId}`}>
 
       {/* Header row */}
       <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
@@ -253,15 +308,25 @@ export default function ReportingPanel({ accountId, currency }: Props) {
         </div>
 
         <button
-          onClick={handlePrint}
-          className="no-print flex items-center gap-1.5 rounded-lg border border-[#2a3a5c] bg-[#141a2e] px-3 py-1.5 text-xs font-medium text-[#8b93b0] hover:border-[#4285f4]/50 hover:text-[#4285f4] transition-colors"
+          onClick={handleExportPdf}
+          disabled={exporting}
+          className="flex items-center gap-1.5 rounded-lg border border-[#2a3a5c] bg-[#141a2e] px-3 py-1.5 text-xs font-medium text-[#8b93b0] hover:border-[#4285f4]/50 hover:text-[#4285f4] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="6 9 6 2 18 2 18 9"/>
-            <path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/>
-            <rect x="6" y="14" width="12" height="8"/>
-          </svg>
-          Download PDF
+          {exporting ? (
+            <>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="animate-spin">
+                <path d="M21 12a9 9 0 11-6.219-8.56" strokeLinecap="round" />
+              </svg>
+              Generating…
+            </>
+          ) : (
+            <>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              Download PDF
+            </>
+          )}
         </button>
       </div>
 
@@ -371,23 +436,6 @@ export default function ReportingPanel({ accountId, currency }: Props) {
         </div>
       </div>
 
-      {/* Print styles */}
-      <style>{`
-        @media print {
-          body * { visibility: hidden !important; }
-          .report-panel, .report-panel * { visibility: visible !important; }
-          .report-panel {
-            position: fixed !important;
-            inset: 0 !important;
-            padding: 20px !important;
-            background: #0a0e1a !important;
-            overflow: auto !important;
-            color-adjust: exact !important;
-            -webkit-print-color-adjust: exact !important;
-          }
-          .no-print { display: none !important; }
-        }
-      `}</style>
     </div>
   );
 }
