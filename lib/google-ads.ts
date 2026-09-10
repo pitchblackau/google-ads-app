@@ -1,4 +1,4 @@
-import { GoogleAdsApi } from "google-ads-api";
+import { GoogleAdsApi, enums, fields } from "google-ads-api";
 import { Account, CampaignData, AdGroupData, DailyConversion, AccountReport, DailyReportMetrics, ReportCampaign, ReportDevice } from "./types";
 
 // ── Suggestion data types ─────────────────────────────────────────
@@ -199,6 +199,124 @@ export async function fetchAccountDetail(customerId: string): Promise<Account> {
     metrics,
     trend,
   };
+}
+
+// ── Claude chat: read-only GAQL + account snapshot ───────────────
+
+const ENUM_FIELDS = fields.enumFields as unknown as Record<string, string>;
+const ENUM_VALUES = enums as unknown as Record<string, Record<number, string>>;
+const MICROS_METRICS = new Set([
+  "metrics.average_cpc",
+  "metrics.average_cpm",
+  "metrics.average_cpe",
+  "metrics.average_cpv",
+  "metrics.average_cost",
+  "metrics.cost_per_conversion",
+  "metrics.cost_per_all_conversions",
+]);
+const CHAT_MAX_ROWS = 200;
+const CHAT_MAX_CHARS = 40_000;
+
+function flattenRow(value: object, prefix: string, out: Record<string, unknown>): Record<string, unknown> {
+  for (const [key, v] of Object.entries(value)) {
+    const path = prefix ? `${prefix}.${key}` : key;
+    if (v && typeof v === "object" && !Array.isArray(v)) flattenRow(v, path, out);
+    else out[path] = v;
+  }
+  return out;
+}
+
+function formatCell(path: string, v: unknown): string {
+  if (v === null || v === undefined) return "";
+  if (Array.isArray(v)) {
+    return v
+      .map((item) => (item && typeof item === "object" && "text" in item ? String(item.text) : JSON.stringify(item)))
+      .join(" | ");
+  }
+  const enumName = ENUM_FIELDS[path];
+  if (enumName && typeof v === "number") return ENUM_VALUES[enumName]?.[v] ?? String(v);
+  const isMoney = path.endsWith("_micros") || MICROS_METRICS.has(path);
+  if (typeof v === "number" || (isMoney && typeof v === "string" && v !== "" && !Number.isNaN(Number(v)))) {
+    const n = isMoney ? Number(v) / 1_000_000 : Number(v);
+    return String(Math.round(n * 10_000) / 10_000);
+  }
+  return String(v).replace(/\s+/g, " ");
+}
+
+function formatRows(rows: object[], keepResourceNames: boolean): string {
+  if (rows.length === 0) return "0 rows";
+  const flat = rows.map((row) => flattenRow(row, "", {}));
+  const columns = [...new Set(flat.flatMap((row) => Object.keys(row)))].filter(
+    (c) => keepResourceNames || !c.endsWith("resource_name"),
+  );
+  const header = columns.map((c) => c.replace(/_micros$/, "")).join("\t");
+  const lines: string[] = [];
+  let size = header.length;
+  for (const row of flat) {
+    const line = columns.map((c) => formatCell(c, row[c])).join("\t");
+    size += line.length + 1;
+    if (size > CHAT_MAX_CHARS) break;
+    lines.push(line);
+  }
+  const shown = lines.length < flat.length ? ` (first ${lines.length} shown; narrow the query to see the rest)` : "";
+  return `${flat.length} rows${shown}\n${header}\n${lines.join("\n")}`;
+}
+
+export async function runChatQuery(customerId: string, query: string): Promise<string> {
+  let gaql = query.trim().replace(/;\s*$/, "");
+  if (!/^SELECT\s/i.test(gaql)) throw new Error("Only SELECT queries are allowed.");
+  const limit = gaql.match(/\sLIMIT\s+(\d+)$/i);
+  if (!limit) gaql += ` LIMIT ${CHAT_MAX_ROWS}`;
+  else if (Number(limit[1]) > CHAT_MAX_ROWS) gaql = `${gaql.slice(0, limit.index)} LIMIT ${CHAT_MAX_ROWS}`;
+  const rows = await getCustomer(customerId).query(gaql);
+  return formatRows(rows, /resource_name/i.test(gaql));
+}
+
+export async function fetchChatSnapshot(customerId: string): Promise<string> {
+  const customer = getCustomer(customerId);
+  const [infoRows, { metrics }, campaignRows] = await Promise.all([
+    customer.query(`SELECT customer.descriptive_name, customer.currency_code, customer.time_zone FROM customer LIMIT 1`),
+    fetchAccountData(customerId),
+    customer.query(`
+      SELECT campaign.name, campaign.status, campaign.advertising_channel_type,
+        campaign.bidding_strategy_type, campaign_budget.amount_micros,
+        metrics.cost_micros, metrics.clicks, metrics.impressions,
+        metrics.conversions, metrics.conversions_value, metrics.search_impression_share
+      FROM campaign
+      WHERE segments.date DURING LAST_30_DAYS AND campaign.status != 'REMOVED'
+      ORDER BY metrics.cost_micros DESC
+      LIMIT 50
+    `),
+  ]);
+
+  const info = infoRows[0]?.customer;
+  const timeZone = info?.time_zone ?? "UTC";
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  const periods = [
+    ["Today (so far)", metrics.today],
+    ["Yesterday", metrics.yesterday],
+    ["Last 7 days (excl. today)", metrics.thisWeek],
+    ["This month", metrics.thisMonth],
+    ["Last 30 days (excl. today)", metrics.last30Days],
+  ] as const;
+  const totals = [
+    "period\tcost\tclicks\timpressions\tconversions\tconv_rate_%",
+    ...periods.map(([label, m]) =>
+      [label, m.spend, m.clicks, m.impressions, Math.round(m.conversions * 100) / 100, m.conversionRate].join("\t"),
+    ),
+  ].join("\n");
+
+  return [
+    "<account_snapshot>",
+    `Account: ${info?.descriptive_name ?? customerId} (ID ${customerId}) · Currency: ${info?.currency_code ?? "AUD"} · Time zone: ${timeZone} · Today: ${today}`,
+    "",
+    "Account totals:",
+    totals,
+    "",
+    "Campaigns with activity in the last 30 days (top 50 by cost):",
+    formatRows(campaignRows, false),
+    "</account_snapshot>",
+  ].join("\n");
 }
 
 // ── Standalone trend queries (support multiple periods) ──────────

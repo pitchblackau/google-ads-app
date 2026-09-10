@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Account } from "@/lib/types";
 import MetricBox from "./MetricBox";
 import ReportingPanel from "./ReportingPanel";
+import AccountChat from "./AccountChat";
 import { clsx } from "clsx";
 
 interface AccountCardProps {
@@ -25,6 +26,14 @@ const PERIODS = [
   { key: "last30Days" as const, label: "Last 30 Days" },
 ] as const;
 
+const TABS = [
+  { key: "overview", label: "Overview" },
+  { key: "reporting", label: "Reporting" },
+  { key: "ask", label: "Ask" },
+] as const;
+
+type Tab = (typeof TABS)[number]["key"];
+
 export default function AccountCard({
   account,
   onToggleActive,
@@ -37,7 +46,7 @@ export default function AccountCard({
 }: AccountCardProps) {
   const router = useRouter();
   const cardRef = useRef<HTMLDivElement>(null);
-  const [tab, setTab] = useState<"overview" | "reporting">("overview");
+  const [tab, setTab] = useState<Tab>("overview");
 
   return (
     <div
@@ -119,31 +128,23 @@ export default function AccountCard({
 
       {/* Tab switcher */}
       <div className="flex items-center gap-0.5 rounded-lg bg-[#0d0d14] p-0.5 self-start">
-        <button
-          onClick={() => setTab("overview")}
-          className={clsx(
-            "px-4 py-1.5 text-xs font-semibold rounded-md transition-all duration-150",
-            tab === "overview"
-              ? "bg-[#1e1e2e] text-white shadow"
-              : "text-[#6b7280] hover:text-[#a0a8c0]"
-          )}
-        >
-          Overview
-        </button>
-        <button
-          onClick={() => setTab("reporting")}
-          className={clsx(
-            "px-4 py-1.5 text-xs font-semibold rounded-md transition-all duration-150",
-            tab === "reporting"
-              ? "bg-[#1e1e2e] text-white shadow"
-              : "text-[#6b7280] hover:text-[#a0a8c0]"
-          )}
-        >
-          Reporting
-        </button>
+        {TABS.map(({ key, label }) => (
+          <button
+            key={key}
+            onClick={() => setTab(key)}
+            className={clsx(
+              "px-4 py-1.5 text-xs font-semibold rounded-md transition-all duration-150",
+              tab === key
+                ? "bg-[#1e1e2e] text-white shadow"
+                : "text-[#6b7280] hover:text-[#a0a8c0]"
+            )}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
-      {tab === "overview" ? (
+      {tab === "overview" && (
         <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
           {PERIODS.map(({ key, label }) => (
             <MetricBox
@@ -154,13 +155,20 @@ export default function AccountCard({
             />
           ))}
         </div>
-      ) : (
+      )}
+
+      {tab === "reporting" && (
         <ReportingPanel
           accountId={account.id}
           accountName={account.name}
           currency={account.currency}
         />
       )}
+
+      {/* Kept mounted so the conversation survives tab switches */}
+      <div className={tab === "ask" ? undefined : "hidden"}>
+        <AccountChat accountId={account.id} accountName={account.name} />
+      </div>
     </div>
   );
 }

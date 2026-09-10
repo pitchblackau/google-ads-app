@@ -8,6 +8,7 @@ import CampaignTable from "./CampaignTable";
 import ConversionsTrend from "./ConversionsTrend";
 import OptimisationSuggestions from "./OptimisationSuggestions";
 import ReportingPanel from "./ReportingPanel";
+import AccountChat from "./AccountChat";
 import { clsx } from "clsx";
 
 const PERIODS = ["today", "yesterday", "thisWeek", "last30Days"] as const;
@@ -17,6 +18,14 @@ const PERIOD_LABELS = {
   thisWeek: "Last 7 Days",
   last30Days: "Last 30 Days",
 };
+
+const TABS = [
+  { key: "overview", label: "Overview" },
+  { key: "reporting", label: "Reporting" },
+  { key: "ask", label: "Ask" },
+] as const;
+
+type Tab = (typeof TABS)[number]["key"];
 
 interface AccountDetailProps {
   accountId: string;
@@ -39,7 +48,7 @@ interface FlatAdGroup extends AdGroupData {
 
 export default function AccountDetail({ accountId }: AccountDetailProps) {
   const router = useRouter();
-  const [tab, setTab] = useState<"overview" | "reporting">("overview");
+  const [tab, setTab] = useState<Tab>("overview");
 
   // Account header state
   const [account, setAccount] = useState<Account | null>(null);
@@ -137,24 +146,18 @@ export default function AccountDetail({ accountId }: AccountDetailProps) {
           <div className="flex items-center gap-3">
             {/* Tab switcher */}
             <div className="flex items-center gap-0.5 rounded-lg bg-[#0d0d14] p-0.5">
-              <button
-                onClick={() => setTab("overview")}
-                className={clsx(
-                  "px-4 py-1.5 text-xs font-semibold rounded-md transition-all duration-150",
-                  tab === "overview" ? "bg-[#1e1e2e] text-white shadow" : "text-[#6b7280] hover:text-[#a0a8c0]"
-                )}
-              >
-                Overview
-              </button>
-              <button
-                onClick={() => setTab("reporting")}
-                className={clsx(
-                  "px-4 py-1.5 text-xs font-semibold rounded-md transition-all duration-150",
-                  tab === "reporting" ? "bg-[#1e1e2e] text-white shadow" : "text-[#6b7280] hover:text-[#a0a8c0]"
-                )}
-              >
-                Reporting
-              </button>
+              {TABS.map(({ key, label }) => (
+                <button
+                  key={key}
+                  onClick={() => setTab(key)}
+                  className={clsx(
+                    "px-3 sm:px-4 py-1.5 text-xs font-semibold rounded-md transition-all duration-150",
+                    tab === key ? "bg-[#1e1e2e] text-white shadow" : "text-[#6b7280] hover:text-[#a0a8c0]"
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
 
             {account && (
@@ -176,6 +179,11 @@ export default function AccountDetail({ accountId }: AccountDetailProps) {
             {error}
           </div>
         )}
+
+        {/* Ask tab — kept mounted so the conversation survives tab switches */}
+        <div className={tab === "ask" ? undefined : "hidden"}>
+          <AccountChat accountId={accountId} accountName={account?.name ?? ""} />
+        </div>
 
         {/* Reporting tab */}
         {tab === "reporting" && (
