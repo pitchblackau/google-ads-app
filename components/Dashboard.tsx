@@ -215,14 +215,14 @@ export default function Dashboard() {
 
           {data && (
             <>
-              {/* Period selector */}
-              <div className="flex flex-wrap items-center gap-1.5">
+              {/* Period selector — scrollable on mobile */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
                 {CHIP_PERIODS.map((p) => (
                   <button
                     key={p.key}
                     onClick={() => setChipPeriod(p.key)}
                     className={clsx(
-                      "rounded-full px-3 py-1 text-[11px] font-medium transition-all border",
+                      "rounded-full px-3 py-1 text-[11px] font-medium transition-all border whitespace-nowrap shrink-0",
                       chipPeriod === p.key
                         ? "bg-[#00fff9]/10 border-[#00fff9]/30 text-[#00fff9]"
                         : "border-[#1e1e2e] bg-[#111118] text-[#6b6b7e] hover:text-[#a0a0b8] hover:border-[#2a2a3a]"
@@ -233,26 +233,26 @@ export default function Dashboard() {
                 ))}
               </div>
 
-              {/* Stats chips */}
+              {/* Stats chips — scrollable on mobile */}
               {(() => {
                 const pl = CHIP_PERIODS.find((p) => p.key === chipPeriod)!.label;
                 const m  = (fn: (m: TimePeriodMetrics) => number) =>
                   activeAccounts.reduce((s, a) => s + fn(a.metrics), 0);
                 return (
-                  <div className="flex flex-wrap gap-2 md:gap-3">
-                    <Chip label="Active Accounts"   value={String(activeAccounts.length)} />
-                    <Chip label="Inactive Accounts" value={String(data.accounts.length - activeAccounts.length)} dim />
+                  <div className="flex gap-2 md:gap-3 overflow-x-auto pb-0.5 scrollbar-none">
+                    <Chip label="Active" value={String(activeAccounts.length)} />
+                    <Chip label="Inactive" value={String(data.accounts.length - activeAccounts.length)} dim />
                     <Chip
-                      label={`Conversions · ${pl}`}
+                      label={`Conversions`}
                       value={m((x) => x[chipPeriod].conversions).toLocaleString()}
                       accent
                     />
                     <Chip
-                      label={`Spend · ${pl}`}
+                      label={`Spend`}
                       value={`$${m((x) => x[chipPeriod].spend).toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
                     />
                     <Chip
-                      label={`Clicks · ${pl}`}
+                      label={`Clicks`}
                       value={m((x) => x[chipPeriod].clicks).toLocaleString()}
                     />
                   </div>
@@ -294,9 +294,9 @@ export default function Dashboard() {
 
 function Chip({ label, value, accent, dim }: { label: string; value: string; accent?: boolean; dim?: boolean }) {
   return (
-    <div className="rounded-lg border border-[#1e1e2e] bg-[#111118] px-3 md:px-4 py-2 md:py-2.5 flex items-center gap-2 md:gap-3">
-      <p className="text-[10px] md:text-[11px] text-[#8b8b9a] font-medium">{label}</p>
-      <p className={`text-sm font-bold ${accent ? "text-[#00fff9]" : dim ? "text-[#4e4e63]" : "text-white"}`}>{value}</p>
+    <div className="shrink-0 rounded-lg border border-[#1e1e2e] bg-[#111118] px-3 md:px-4 py-2 md:py-2.5 flex items-center gap-2 md:gap-3">
+      <p className="text-[10px] md:text-[11px] text-[#8b8b9a] font-medium whitespace-nowrap">{label}</p>
+      <p className={`text-sm font-bold whitespace-nowrap ${accent ? "text-[#00fff9]" : dim ? "text-[#4e4e63]" : "text-white"}`}>{value}</p>
     </div>
   );
 }

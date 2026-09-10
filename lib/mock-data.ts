@@ -43,6 +43,7 @@ export const MOCK_ACCOUNTS: Account[] = BASE_ACCOUNTS.map((a) => ({
   metrics: {
     today:       a.isActive ? mockMetrics(1)   : ZERO_METRICS,
     thisWeek:    a.isActive ? mockMetrics(5)   : ZERO_METRICS,
+    yesterday:   a.isActive ? mockMetrics(0.9) : ZERO_METRICS,
     thisMonth:   a.isActive ? mockMetrics(18)  : ZERO_METRICS,
     last30Days:  a.isActive ? mockMetrics(20)  : ZERO_METRICS,
     last3Months: a.isActive ? mockMetrics(55)  : ZERO_METRICS,

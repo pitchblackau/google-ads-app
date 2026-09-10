@@ -10,11 +10,11 @@ import OptimisationSuggestions from "./OptimisationSuggestions";
 import ReportingPanel from "./ReportingPanel";
 import { clsx } from "clsx";
 
-const PERIODS = ["today", "thisWeek", "thisMonth", "last30Days"] as const;
+const PERIODS = ["today", "yesterday", "thisWeek", "last30Days"] as const;
 const PERIOD_LABELS = {
   today: "Today",
+  yesterday: "Yesterday",
   thisWeek: "Last 7 Days",
-  thisMonth: "This Month",
   last30Days: "Last 30 Days",
 };
 

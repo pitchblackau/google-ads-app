@@ -152,16 +152,12 @@ function AccountButton({
         <span className="truncate text-[12px] leading-tight">{account.name}</span>
       </button>
 
-      {/* Activate button — only on inactive accounts, appears on row hover */}
+      {/* Activate button — only on inactive accounts, always visible */}
       {!isActive && onActivate && (
         <button
           onClick={(e) => { e.stopPropagation(); onActivate(); }}
           title="Restore to dashboard"
-          className={clsx(
-            "shrink-0 rounded-md p-1.5 transition-all",
-            "opacity-0 group-hover/row:opacity-100",
-            "text-[#3a3a50] hover:text-[#00fff9] hover:bg-[#00fff910]"
-          )}
+          className="shrink-0 rounded-md p-1.5 transition-all text-[#3a3a50] hover:text-[#00fff9] hover:bg-[#00fff910]"
         >
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
             <path d="M12 5v14M5 12l7-7 7 7" strokeLinecap="round" strokeLinejoin="round" />

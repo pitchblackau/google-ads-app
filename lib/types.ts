@@ -9,6 +9,7 @@ export interface AccountMetrics {
 export interface TimePeriodMetrics {
   today: AccountMetrics;
   thisWeek: AccountMetrics;
+  yesterday: AccountMetrics;
   thisMonth: AccountMetrics;
   last30Days: AccountMetrics;
   last3Months: AccountMetrics;

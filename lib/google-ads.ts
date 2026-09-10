@@ -96,9 +96,10 @@ async function fetchAccountData(customerId: string) {
   const todayStr = now.toISOString().slice(0, 10);
   const yearStartStr = `${now.getFullYear()}-01-01`;
 
-  const [today, thisWeek, thisMonth, last30Days, spend90, trendRows, last3Months, thisYear] = await Promise.all([
+  const [today, thisWeek, yesterday, thisMonth, last30Days, spend90, trendRows, last3Months, thisYear] = await Promise.all([
     customer.query(`SELECT ${METRICS_FIELDS} FROM customer WHERE segments.date DURING TODAY`),
     customer.query(`SELECT ${METRICS_FIELDS} FROM customer WHERE segments.date DURING LAST_7_DAYS`),
+    customer.query(`SELECT ${METRICS_FIELDS} FROM customer WHERE segments.date DURING YESTERDAY`),
     customer.query(`SELECT ${METRICS_FIELDS} FROM customer WHERE segments.date DURING THIS_MONTH`),
     customer.query(`SELECT ${METRICS_FIELDS} FROM customer WHERE segments.date DURING LAST_30_DAYS`),
     customer.query(`SELECT metrics.cost_micros FROM customer WHERE segments.date >= '${d90Str}' AND segments.date <= '${todayStr}'`),
@@ -123,6 +124,7 @@ async function fetchAccountData(customerId: string) {
     metrics: {
       today: parseMetrics(today[0]),
       thisWeek: parseMetrics(thisWeek[0]),
+      yesterday: parseMetrics(yesterday[0]),
       thisMonth: parseMetrics(thisMonth[0]),
       last30Days: parseMetrics(last30Days[0]),
       last3Months: parseMetrics(last3Months[0]),

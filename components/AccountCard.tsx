@@ -20,8 +20,8 @@ interface AccountCardProps {
 
 const PERIODS = [
   { key: "today" as const,      label: "Today" },
+  { key: "yesterday" as const,  label: "Yesterday" },
   { key: "thisWeek" as const,   label: "Last 7 Days" },
-  { key: "thisMonth" as const,  label: "This Month" },
   { key: "last30Days" as const, label: "Last 30 Days" },
 ] as const;
 
@@ -92,8 +92,8 @@ export default function AccountCard({
           onClick={() => router.push(`/account/${account.id}`)}
           className="group/name flex-1 text-left min-w-0 cursor-pointer"
         >
-          <h2 className="text-sm font-semibold text-[#00fff9] group-hover/name:underline leading-tight flex items-center gap-1.5">
-            {account.name}
+          <h2 className="text-sm font-semibold text-[#00fff9] group-hover/name:underline leading-tight flex items-center gap-1.5 min-w-0">
+            <span className="truncate">{account.name}</span>
             <svg
               width="11" height="11" viewBox="0 0 24 24" fill="none"
               stroke="currentColor" strokeWidth="2.5"
@@ -107,18 +107,13 @@ export default function AccountCard({
           </p>
         </button>
 
-        {/* Toggle button — shows "Active" normally, "Set Inactive" on hover */}
+        {/* Toggle button — deactivate this account */}
         <button
           onClick={(e) => { e.stopPropagation(); onToggleActive?.(); }}
-          title="Click to move to inactive"
-          className={clsx(
-            "group/toggle rounded-full border px-2.5 py-0.5 text-[10px] font-medium shrink-0 transition-all duration-150",
-            "bg-[#00fff910] border-[#00fff930] text-[#00fff9]",
-            "hover:bg-red-500/10 hover:border-red-500/30 hover:text-red-400"
-          )}
+          title="Move to inactive"
+          className="shrink-0 rounded-full border px-2.5 py-0.5 text-[10px] font-medium transition-all duration-150 bg-[#00fff910] border-[#00fff930] text-[#00fff9] hover:bg-red-500/10 hover:border-red-500/30 hover:text-red-400"
         >
-          <span className="group-hover/toggle:hidden">Active</span>
-          <span className="hidden group-hover/toggle:inline whitespace-nowrap">Set Inactive</span>
+          Active
         </button>
       </div>
 
