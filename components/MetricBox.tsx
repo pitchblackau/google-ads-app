@@ -24,6 +24,16 @@ function fmtSpend(n: number, currency: string) {
   }).format(n);
 }
 
+function fmtCpc(spend: number, clicks: number, currency: string) {
+  if (clicks === 0) return "—";
+  return new Intl.NumberFormat("en-AU", {
+    style: "currency",
+    currency,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(spend / clicks);
+}
+
 const PERIOD_COLORS: Record<string, string> = {
   Today: "border-t-[#00fff9]",
   Yesterday: "border-t-[#7c6aff]",
@@ -47,6 +57,7 @@ export default function MetricBox({ label, metrics, currency }: MetricBoxProps) 
 
       <Row label="Spend" value={fmtSpend(metrics.spend, currency)} bold />
       <Row label="Clicks" value={fmt(metrics.clicks, currency)} />
+      <Row label="Avg. CPC" value={fmtCpc(metrics.spend, metrics.clicks, currency)} />
       <Row label="Impress." value={fmt(metrics.impressions, currency)} />
       <Row label="Conv. Rate" value={`${metrics.conversionRate.toFixed(2)}%`} />
       <Row label="Conversions" value={fmt(metrics.conversions, currency)} accent />
