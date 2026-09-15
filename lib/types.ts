@@ -164,3 +164,17 @@ export interface AccountReport {
   devices: ReportDevice[];
   monthlyConversions: MonthlyConversions[];
 }
+
+// ── Postcode heatmap ──────────────────────────────────────────────
+
+export interface PostcodePerformance {
+  postcode: string;
+  clicks: number;
+  conversions: number;
+  /** Percentage, e.g. 6.06 for 6.06%. Derived from clicks and conversions when omitted. */
+  convRate?: number;
+  suburb?: string;
+  /** Centroid, used for a circle marker when ABS has no boundary polygon for the postcode. */
+  lat?: number;
+  lon?: number;
+}

@@ -1,4 +1,4 @@
-import { Account, AccountReport, DailyConversion, Suggestion } from "./types";
+import { Account, AccountReport, DailyConversion, PostcodePerformance, Suggestion } from "./types";
 import { format, subDays, subMonths, startOfMonth } from "date-fns";
 
 function rand(min: number, max: number) {
@@ -134,6 +134,13 @@ export function generateMockAccountTrend(days = 30): DailyConversion[] {
     date: format(subDays(new Date(), days - 1 - i), "yyyy-MM-dd"),
     conversions: Math.round(rand(2, 40)),
   }));
+}
+
+export function generateMockPostcodePerformance(): PostcodePerformance[] {
+  return ["6000", "6005", "6008", "6014", "6019", "6027", "6050", "6107", "6112", "6155", "6163", "6210"].map((postcode) => {
+    const clicks = Math.round(rand(3, 80));
+    return { postcode, clicks, conversions: Math.round(rand(0, clicks * 0.15)) };
+  });
 }
 
 export function generateMockAccountReport(): AccountReport {

@@ -1,5 +1,5 @@
 import { GoogleAdsApi, enums, fields } from "google-ads-api";
-import { Account, CampaignData, AdGroupData, DailyConversion, AccountReport, DailyReportMetrics, ReportCampaign, ReportDevice } from "./types";
+import { Account, CampaignData, AdGroupData, DailyConversion, AccountReport, DailyReportMetrics, ReportCampaign, ReportDevice, PostcodePerformance } from "./types";
 
 // ── Suggestion data types ─────────────────────────────────────────
 export interface KeywordRow {
@@ -331,6 +331,47 @@ function buildTrendDateFilter(period: string): string {
   const days = period === "LAST_3_MONTHS" ? 90 : 180; // default → LAST_6_MONTHS
   const start = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
   return `segments.date >= '${start.toISOString().slice(0, 10)}' AND segments.date <= '${todayStr}'`;
+}
+
+export async function fetchPostcodePerformance(customerId: string, period: string): Promise<PostcodePerformance[]> {
+  const customer = getCustomer(customerId);
+  const rows = await customer.query(`
+    SELECT segments.geo_target_postal_code, metrics.clicks, metrics.conversions
+    FROM user_location_view
+    WHERE ${buildTrendDateFilter(period)} AND metrics.clicks > 0
+  `);
+
+  const totals = new Map<string, { clicks: number; conversions: number }>();
+  for (const row of rows) {
+    const resource = row.segments?.geo_target_postal_code;
+    if (!resource) continue;
+    const total = totals.get(resource) ?? { clicks: 0, conversions: 0 };
+    total.clicks += Number(row.metrics?.clicks ?? 0);
+    total.conversions += Number(row.metrics?.conversions ?? 0);
+    totals.set(resource, total);
+  }
+  if (totals.size === 0) return [];
+
+  // Rows identify postcodes as geo target constants (e.g. geoTargetConstants/9071473); resolve them to "6000".
+  const constants = await customer.query(`
+    SELECT geo_target_constant.resource_name, geo_target_constant.name
+    FROM geo_target_constant
+    WHERE geo_target_constant.resource_name IN (${[...totals.keys()].map((r) => `'${r}'`).join(",")})
+  `);
+  const postcodeOf = new Map(constants.map((c) => [c.geo_target_constant?.resource_name, c.geo_target_constant?.name]));
+
+  const byPostcode = new Map<string, PostcodePerformance>();
+  for (const [resource, total] of totals) {
+    const postcode = postcodeOf.get(resource);
+    if (!postcode) continue;
+    const entry = byPostcode.get(postcode) ?? { postcode, clicks: 0, conversions: 0 };
+    entry.clicks += total.clicks;
+    entry.conversions += total.conversions;
+    byPostcode.set(postcode, entry);
+  }
+  return [...byPostcode.values()]
+    .map((p) => ({ ...p, conversions: Math.round(p.conversions * 100) / 100 }))
+    .sort((a, b) => b.clicks - a.clicks);
 }
 
 export async function fetchAccountTrend(customerId: string, period: string): Promise<DailyConversion[]> {

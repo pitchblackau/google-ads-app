@@ -9,6 +9,7 @@ import ConversionsTrend from "./ConversionsTrend";
 import OptimisationSuggestions from "./OptimisationSuggestions";
 import ReportingPanel from "./ReportingPanel";
 import AccountChat from "./AccountChat";
+import AccountPostcodeMap from "./AccountPostcodeMap";
 import { clsx } from "clsx";
 
 const PERIODS = ["today", "yesterday", "thisWeek", "last30Days"] as const;
@@ -23,6 +24,7 @@ const TABS = [
   { key: "overview", label: "Overview" },
   { key: "reporting", label: "Reporting" },
   { key: "ask", label: "Ask" },
+  { key: "map", label: "Map" },
 ] as const;
 
 type Tab = (typeof TABS)[number]["key"];
@@ -49,6 +51,8 @@ interface FlatAdGroup extends AdGroupData {
 export default function AccountDetail({ accountId }: AccountDetailProps) {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("overview");
+  // The map pulls in Leaflet, ABS boundaries and a Google Ads query, so it's only built once the tab is first opened.
+  const [mapOpened, setMapOpened] = useState(false);
 
   // Account header state
   const [account, setAccount] = useState<Account | null>(null);
@@ -120,8 +124,8 @@ export default function AccountDetail({ accountId }: AccountDetailProps) {
     <div className="min-h-screen bg-[#08080f] text-white">
       {/* Header */}
       <header className="sticky top-0 z-10 border-b border-[#1e1e2e] bg-[#08080f]/90 backdrop-blur-sm">
-        <div className="mx-auto max-w-[1400px] flex items-center justify-between px-4 md:px-6 py-3.5 md:py-4">
-          <div className="flex items-center gap-3 min-w-0">
+        <div className="mx-auto max-w-[1400px] flex flex-wrap items-center gap-x-3 gap-y-2.5 px-4 md:px-6 py-3 md:py-4">
+          <div className="order-1 flex flex-1 items-center gap-3 min-w-0">
             <button
               onClick={() => router.push("/")}
               className="flex items-center gap-1.5 text-[#4e4e63] hover:text-white transition-colors text-[12px] shrink-0"
@@ -143,33 +147,34 @@ export default function AccountDetail({ accountId }: AccountDetailProps) {
               </div>
             )}
           </div>
-          <div className="flex items-center gap-3">
-            {/* Tab switcher */}
-            <div className="flex items-center gap-0.5 rounded-lg bg-[#0d0d14] p-0.5">
-              {TABS.map(({ key, label }) => (
-                <button
-                  key={key}
-                  onClick={() => setTab(key)}
-                  className={clsx(
-                    "px-3 sm:px-4 py-1.5 text-xs font-semibold rounded-md transition-all duration-150",
-                    tab === key ? "bg-[#1e1e2e] text-white shadow" : "text-[#6b7280] hover:text-[#a0a8c0]"
-                  )}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-
-            {account && (
-              <span className={`rounded-full border px-2.5 py-0.5 text-[10px] font-semibold ${
-                account.isActive
-                  ? "border-[#00fff930] bg-[#00fff910] text-[#00fff9]"
-                  : "border-[#3a3a5030] bg-[#3a3a5010] text-[#3a3a50]"
-              }`}>
-                {account.isActive ? "Active" : "Inactive"}
-              </span>
-            )}
+          {/* Tabs drop to their own full-width row on phones so the account name keeps its space */}
+          <div className="order-3 flex w-full items-center gap-0.5 rounded-lg bg-[#0d0d14] p-0.5 sm:order-2 sm:w-auto">
+            {TABS.map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => {
+                  setTab(key);
+                  if (key === "map") setMapOpened(true);
+                }}
+                className={clsx(
+                  "flex-1 sm:flex-none px-3 sm:px-4 py-1.5 text-xs font-semibold rounded-md transition-all duration-150",
+                  tab === key ? "bg-[#1e1e2e] text-white shadow" : "text-[#6b7280] hover:text-[#a0a8c0]"
+                )}
+              >
+                {label}
+              </button>
+            ))}
           </div>
+
+          {account && (
+            <span className={`order-2 shrink-0 sm:order-3 rounded-full border px-2.5 py-0.5 text-[10px] font-semibold ${
+              account.isActive
+                ? "border-[#00fff930] bg-[#00fff910] text-[#00fff9]"
+                : "border-[#3a3a5030] bg-[#3a3a5010] text-[#3a3a50]"
+            }`}>
+              {account.isActive ? "Active" : "Inactive"}
+            </span>
+          )}
         </div>
       </header>
 
@@ -184,6 +189,12 @@ export default function AccountDetail({ accountId }: AccountDetailProps) {
         <div className={tab === "ask" ? undefined : "hidden"}>
           <AccountChat accountId={accountId} accountName={account?.name ?? ""} />
         </div>
+
+        {mapOpened && (
+          <div className={tab === "map" ? undefined : "hidden"}>
+            <AccountPostcodeMap accountId={accountId} />
+          </div>
+        )}
 
         {/* Reporting tab */}
         {tab === "reporting" && (
